@@ -12,6 +12,7 @@ import {
   retryBackup,
 } from '../app/backup';
 import type { CloudConfig, CloudSnapshot } from '../providers/cloudkit';
+import { DEFAULT_CLOUD_CONFIG } from '../app/cloud-config';
 export function Settings(props: {
   contexts: Context[];
   error: (e: unknown) => void;
@@ -26,21 +27,18 @@ export function Settings(props: {
   const [preview, setPreview] = createSignal<Backup>();
   const [state, setState] = createSignal<BackupState>();
   const [clouds, setClouds] = createSignal<CloudSnapshot[]>([]);
-  const [config, setConfig] = createSignal<CloudConfig>({
-    container: '',
-    apiToken: '',
-    environment: 'production',
-  });
+  const [config, setConfig] = createSignal<CloudConfig>({ ...DEFAULT_CLOUD_CONFIG });
   const [busy, setBusy] = createSignal(false);
   const [info, setInfo] = createSignal('');
   const [privateNote, setPrivateNote] = createSignal('');
   onMount(async () => {
     setResume((await getMeta('preferences', { resume: true })).resume);
     setState(await backupState());
-    setConfig(await getMeta('cloudConfig', config()));
+    const savedConfig = await getMeta<CloudConfig | undefined>('cloudConfig', undefined);
+    setConfig(savedConfig ?? { ...DEFAULT_CLOUD_CONFIG });
     const api = await import('../providers/openai');
     setKeyStatus(api.getKey() ? 'Key available on this device' : 'No key configured');
-    if (config().container)
+    if (savedConfig?.container)
       void act(async () => {
         await refreshAuth();
         if (cloudSignedIn()) await listCloud();
@@ -246,18 +244,19 @@ export function Settings(props: {
             CloudKit loads Apple's sign-in script. Scripts on this origin can access a remembered
             OpenAI key. Configuration changes require reopening the app.
           </p>
-          <button
-            onClick={() =>
-              void act(async () => {
-                await setMeta('cloudConfig', config());
-                await initializeCloud();
-                setInfo('CloudKit configuration saved. Use the Apple sign-in control.');
-              })
-            }
-          >
-            Save & connect CloudKit
-          </button>
         </details>
+        <button
+          disabled={busy()}
+          onClick={() =>
+            void act(async () => {
+              await setMeta('cloudConfig', config());
+              await initializeCloud();
+              setInfo('Use the Apple sign-in control to connect your private iCloud backups.');
+            })
+          }
+        >
+          Connect iCloud
+        </button>
         <div id="apple-sign-in" />
         <div id="apple-sign-out" />
         <div class="actions">

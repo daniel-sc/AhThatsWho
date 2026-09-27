@@ -17,6 +17,9 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   });
   await page.route('https://api.openai.com/v1/responses', async (route) => {
     proposals++;
+    const input = JSON.parse(route.request().postDataJSON().input);
+    expect(input.source).toContain('Also likes jazz.');
+    expect(input.source).toContain('Met Beatrice');
     if (proposals === 1) {
       await route.fulfill({ status: 429, json: { error: 'synthetic rate limit' } });
       return;
@@ -52,21 +55,22 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
   await page.getByRole('button', { name: 'Save key', exact: true }).click();
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
+  await page.getByLabel('Capture text', { exact: true }).fill('Also likes jazz.');
   await page.getByRole('button', { name: 'Record a voice note' }).click();
   await expect(page.getByRole('button', { name: /Stop recording/ })).toBeVisible();
   await page.waitForTimeout(1200);
   await page.getByRole('button', { name: /Stop recording/ }).click();
-  await expect(
-    page.getByText('Audio received and stored locally.', { exact: false }),
-  ).toBeVisible();
-  expect(transcriptions).toBe(0);
-  await page.getByRole('button', { name: 'Save for later' }).click();
+  await expect(page.getByRole('alert').first()).toContainText('limit');
+  expect(transcriptions).toBe(1);
+  expect(proposals).toBe(1);
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
+  await page.getByRole('button', { name: 'Save key', exact: true }).click();
   await page.getByRole('button', { name: /Inbox/ }).click();
-  await page.getByRole('button', { name: /Saved audio recording/ }).click();
+  await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Play saved recording' }).click();
   await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
-  await page.getByRole('button', { name: 'Transcribe & process' }).click();
-  await expect(page.getByRole('alert').first()).toContainText('limit');
   await page.getByRole('button', { name: 'Process with OpenAI' }).click();
   await expect(page.getByRole('heading', { name: 'Proposed', exact: true })).toBeVisible();
   expect(transcriptions).toBe(1);
@@ -89,4 +93,30 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
       }),
   );
   expect(remaining).toBe(0);
+});
+
+test('backgrounding a recording keeps it in Inbox without starting processing', async ({
+  page,
+}) => {
+  let requests = 0;
+  await page.route('https://api.openai.com/**', async (route) => {
+    requests++;
+    await route.abort();
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
+  await page.getByRole('button', { name: 'Record a voice note' }).click();
+  await expect(page.getByRole('button', { name: /Stop recording/ })).toBeVisible();
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.getByText('Audio saved on this device.', { exact: false })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: /Inbox/ }).click();
+  await page.getByRole('button', { name: /Saved audio recording/ }).click();
+  await page.getByRole('button', { name: 'Play saved recording' }).click();
+  await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
+  expect(requests).toBe(0);
 });

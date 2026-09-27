@@ -18,6 +18,7 @@ export function CapturePanel(props: {
   const [status, setStatus] = createSignal('');
   let input!: HTMLTextAreaElement;
   let stop: (() => void) | undefined;
+  let processOnStop = false;
   let timer: ReturnType<typeof setInterval> | undefined;
   let writes = Promise.resolve();
   let draftId: string = uuid();
@@ -64,6 +65,7 @@ export function CapturePanel(props: {
           props.recording(false);
           clearInterval(timer);
           setBusy(false);
+          if (processOnStop && !c.audioMissing && !c.audioIncomplete) void persist(true);
         },
         (e) => {
           props.error(e);
@@ -123,8 +125,14 @@ export function CapturePanel(props: {
       <p class="muted">No need to choose a household. Review before anything changes.</p>
       <button
         class={`record-button ${recording() ? 'recording' : ''}`}
-        disabled={busy() || !!saved()}
-        onClick={() => (recording() ? stop?.() : void record())}
+        disabled={busy() || !!saved() || !ready()}
+        onClick={() => {
+          if (recording()) {
+            processOnStop = true;
+            setBusy(true);
+            stop?.();
+          } else void record();
+        }}
       >
         <span aria-hidden="true">{recording() ? '■' : '●'}</span>{' '}
         {recording() ? `Stop recording · ${seconds()}s` : 'Record a voice note'}
@@ -135,7 +143,7 @@ export function CapturePanel(props: {
             ? 'No audio was received. Add text below.'
             : saved()?.audioIncomplete
               ? 'Only received chunks were saved. Recording was interrupted; check playback in Inbox.'
-              : 'Audio received and stored locally. Check it in Inbox before processing.'}
+              : 'Audio saved on this device. Ready to process from Inbox.'}
         </p>
       </Show>
       <p class="fine">

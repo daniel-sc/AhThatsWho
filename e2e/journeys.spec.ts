@@ -66,6 +66,8 @@ test('capture survives reload, manual proposal applies once', async ({ page }) =
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await page.getByLabel('Capture text').fill('Met Beatrice at the pottery studio.');
   await page.getByRole('button', { name: 'Save for later' }).click();
+  // The panel closes only after the IndexedDB save commits; a click alone doesn't await it.
+  await expect(page.getByLabel('Capture text')).toBeHidden();
   await page.reload();
   await page.getByRole('button', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: /Met Beatrice/ }).click();

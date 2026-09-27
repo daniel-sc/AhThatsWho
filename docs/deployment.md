@@ -19,7 +19,9 @@ A token can alternatively be supplied as `CLOUDFLARE_API_TOKEN` through the envi
 
 ## GitHub Actions
 
-Every push and pull request runs mise-pinned installation, TypeScript checks, unit/integration tests, a production build and Chromium browser journeys. Builds include the source commit SHA. Successful runs retain `dist` as a downloadable artifact for 14 days. Deployment currently uses the local Wrangler login; CI does not hold Cloudflare credentials or automatically deploy.
+Every push and pull request runs mise-pinned installation, TypeScript checks, unit/integration tests, a production build and Chromium browser journeys. Builds include the source commit SHA. Successful runs retain `dist` as a downloadable artifact for 14 days. After checks pass, pushes to `main` or `master` deploy production. Every other branch push uploads a preview version with a stable branch alias, without changing production. Pull requests run checks only; their source-branch push supplies the preview. Tags do not deploy. The deployment log and preview URL appear in the Actions run summary. Manual workflow dispatch can retry deployment after configuration changes.
+
+CI requires repository Actions secret `CLOUDFLARE_API_TOKEN` (account-scoped Workers Scripts: Edit) and variable `CLOUDFLARE_ACCOUNT_ID`. The local Wrangler OAuth session cannot authenticate GitHub runners. Set the secret directly in GitHub; never commit or paste it into chat. Deployment downloads the exact checked build artifact rather than rebuilding. Preview aliases use a hash of the full branch name; preview origins have separate local storage and should use synthetic data. CloudKit production origins are not automatically expanded for previews.
 
 ## CloudKit production
 

@@ -1,0 +1,116 @@
+import { db, backupState, setMeta, type NameCueDB } from '../data/db';
+import { digest, snapshot } from './portable';
+import { now, uuid } from '../domain/types';
+import type { BackupProvider } from '../providers/cloudkit';
+import { assert } from '../domain/integrity';
+export class BackupCoordinator {
+  private running = false;
+  constructor(
+    private provider: BackupProvider,
+    private d: NameCueDB = db,
+    private notify: (s: string) => void = () => {},
+  ) {}
+  async authorize() {
+    await this.provider.list();
+    await this.d.transaction('rw', this.d.meta, async () => {
+      const state = await backupState(this.d);
+      await setMeta(
+        'backup',
+        { ...state, authoritative: true, counter: state.counter + 1 },
+        this.d,
+      );
+    });
+  }
+  async run() {
+    if (this.running) return;
+    this.running = true;
+    let generation: string | undefined;
+    try {
+      let state = await backupState(this.d);
+      generation = state.generation;
+      if (!state.authoritative) {
+        this.notify('Choose restore or start fresh');
+        return;
+      }
+      if (state.counter <= state.uploadedCounter && !state.pendingSnapshot) {
+        this.notify(state.lastSuccess ? 'Backed up' : 'No backup yet');
+        return;
+      }
+      this.notify('Uploading');
+      let pending = state.pendingSnapshot;
+      if (!pending) {
+        const captured = await this.d.transaction(
+          'r',
+          [this.d.households, this.d.contexts, this.d.revisions, this.d.inbox, this.d.meta],
+          async () => ({ snapshot: await snapshot(this.d), state: await backupState(this.d) }),
+        );
+        const json = JSON.stringify(captured.snapshot);
+        pending = {
+          id: uuid(),
+          json,
+          digest: await digest(json),
+          counter: captured.state.counter,
+          generation: captured.state.generation,
+        };
+        const retained = await this.d.transaction('rw', this.d.meta, async () => {
+          state = await backupState(this.d);
+          if (state.generation !== pending!.generation) return false;
+          await setMeta('backup', { ...state, pendingSnapshot: pending }, this.d);
+          return true;
+        });
+        if (!retained) return;
+      }
+      const existing = (await this.provider.list()).find((s) => s.id === pending!.id);
+      if (!existing) await this.provider.save(pending.id, pending.json, pending.digest);
+      const retrieved = await this.provider.load(pending.id);
+      assert(
+        (await digest(retrieved)) === pending.digest,
+        'Uploaded backup did not pass verification',
+      );
+      let currentGeneration = false;
+      await this.d.transaction('rw', this.d.meta, async () => {
+        state = await backupState(this.d);
+        if (state.generation !== pending!.generation) return;
+        currentGeneration = true;
+        await setMeta(
+          'backup',
+          {
+            ...state,
+            uploadedCounter: Math.max(state.uploadedCounter, pending!.counter),
+            lastSuccess: now(),
+            pendingSnapshot: undefined,
+            error: undefined,
+          },
+          this.d,
+        );
+      });
+      if (currentGeneration) {
+        const latest = await backupState(this.d);
+        this.notify(latest.counter > latest.uploadedCounter ? 'Pending' : 'Backed up');
+        try {
+          await this.provider.prune(10);
+        } catch {
+          this.notify('Backed up; retention retry needed');
+        }
+      }
+    } catch (e) {
+      let belongsToCurrentDataset = false;
+      await this.d.transaction('rw', this.d.meta, async () => {
+        const state = await backupState(this.d);
+        if (state.generation !== generation) return;
+        belongsToCurrentDataset = true;
+        await setMeta(
+          'backup',
+          { ...state, error: 'Cloud backup failed. Check connection and sign-in, then retry.' },
+          this.d,
+        );
+      });
+      if (belongsToCurrentDataset) {
+        this.notify('Backup failed');
+        throw e;
+      }
+    } finally {
+      this.running = false;
+    }
+  }
+}

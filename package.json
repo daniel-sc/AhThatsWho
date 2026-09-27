@@ -1,0 +1,32 @@
+{
+  "name": "namecue",
+  "version": "0.1.0-beta.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "preview": "vite preview --host 0.0.0.0",
+    "fixtures": "node --import tsx scripts/fixtures.ts",
+    "format": "prettier --write src tests e2e scripts *.ts *.json *.md docs"
+  },
+  "dependencies": {
+    "dexie": "^4.0.11",
+    "solid-js": "^1.9.9"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.0.0",
+    "fake-indexeddb": "^6.2.2",
+    "prettier": "^3.9.9",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.0",
+    "vite-plugin-pwa": "^1.0.3",
+    "vite-plugin-solid": "^2.11.8",
+    "vitest": "^4.1.11"
+  }
+}

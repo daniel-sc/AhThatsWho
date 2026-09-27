@@ -1,0 +1,14 @@
+[tools]
+node = "24.21.0"
+wrangler = "4.141.0"
+
+[tasks.install]
+run = "npm ci"
+[tasks.dev]
+run = "npm run dev -- --host 0.0.0.0"
+[tasks.check]
+run = "npm run check && npm test && npm run build"
+[tasks.e2e]
+run = "npm run test:e2e"
+[tasks.deploy]
+run = "npm run build && wrangler deploy"

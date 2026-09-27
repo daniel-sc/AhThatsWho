@@ -1,0 +1,18 @@
+{
+  "version": "0.1.0-beta.1",
+  "format": 1,
+  "commit": "uncommitted-at-build-time",
+  "builtAt": "2026-09-27T13:48:07.523Z",
+  "mainAsset": "index-NmoeM9os.js",
+  "mainAssetSha256": "6618e23fac1cfb60c2e2b3fc079149a7149cebe17e06e23d7bf7a0029f3e7a0b",
+  "lockfileSha256": "b5056f275b06793a6244d4549c4cf8e3dbe5d619b7b932825d9f7ca7258638c6",
+  "node": "v24.21.0",
+  "verified": {
+    "unitTests": 28,
+    "chromiumJourneys": 13,
+    "cloudflareDryRun": true,
+    "realOpenAI": false,
+    "realCloudKit": false,
+    "realIPhone": false
+  }
+}

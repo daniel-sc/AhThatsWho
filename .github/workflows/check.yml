@@ -8,6 +8,7 @@ jobs:
     timeout-minutes: 15
     env:
       CI: 'true'
+      BUILD_SHA: ${{ github.sha }}
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v6
@@ -16,3 +17,9 @@ jobs:
       - run: mise exec -- npx playwright install --with-deps chromium
       - run: mise run check
       - run: mise run e2e
+      - uses: actions/upload-artifact@v4
+        with:
+          name: namecue-${{ github.sha }}
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error

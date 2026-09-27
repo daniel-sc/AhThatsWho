@@ -35,8 +35,9 @@ export async function initializeCloud() {
   })();
   try {
     await connecting;
-  } catch {
+  } catch (error) {
     setCloudStatus('Cloud connection failed');
+    throw error;
   } finally {
     connecting = undefined;
   }
@@ -92,7 +93,7 @@ export function startBackup() {
   document.addEventListener('visibilitychange', resume);
   let afterPaint = 0;
   const firstPaint = requestAnimationFrame(() => {
-    afterPaint = requestAnimationFrame(() => void initializeCloud());
+    afterPaint = requestAnimationFrame(() => void initializeCloud().catch(() => {}));
   });
   return () => {
     cancelAnimationFrame(firstPaint);

@@ -45,6 +45,7 @@ export function Settings(props: {
       });
   });
   async function act(fn: () => Promise<unknown>) {
+    setInfo('');
     setBusy(true);
     try {
       await fn();

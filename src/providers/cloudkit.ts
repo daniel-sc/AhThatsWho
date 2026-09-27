@@ -97,7 +97,23 @@ export async function connectCloud(config: CloudConfig, onAuth: (signedIn: boole
   const container = window.CloudKit!.getDefaultContainer();
   const database = container.privateCloudDatabase;
   async function auth() {
-    onAuth(!!(await container.setUpAuth()));
+    try {
+      onAuth(!!(await container.setUpAuth()));
+    } catch (error) {
+      onAuth(false);
+      const code =
+        (error as { ckErrorCode?: string; serverErrorCode?: string })?.ckErrorCode ||
+        (error as { serverErrorCode?: string })?.serverErrorCode;
+      if (code === 'AUTHENTICATION_FAILED') {
+        throw new Error(
+          `Apple rejected the CloudKit website token. Check that it belongs to this container and the ${config.environment} environment.`,
+        );
+      }
+      // Never expose the raw SDK error: it may include authenticated request URLs.
+      throw new Error(
+        'Apple sign-in could not initialize. Check the website token, allowed origin and connection, then retry.',
+      );
+    }
   }
   void (async () => {
     while (true) {

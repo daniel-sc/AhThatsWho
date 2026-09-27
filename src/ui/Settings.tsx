@@ -12,7 +12,7 @@ import {
   retryBackup,
 } from '../app/backup';
 import type { CloudConfig, CloudSnapshot } from '../providers/cloudkit';
-import { DEFAULT_CLOUD_CONFIG } from '../app/cloud-config';
+import { DEFAULT_CLOUD_CONFIG, currentCloudConfig } from '../app/cloud-config';
 export function Settings(props: {
   contexts: Context[];
   error: (e: unknown) => void;
@@ -35,7 +35,7 @@ export function Settings(props: {
     setResume((await getMeta('preferences', { resume: true })).resume);
     setState(await backupState());
     const savedConfig = await getMeta<CloudConfig | undefined>('cloudConfig', undefined);
-    setConfig(savedConfig ?? { ...DEFAULT_CLOUD_CONFIG });
+    setConfig(currentCloudConfig(savedConfig));
     const api = await import('../providers/openai');
     setKeyStatus(api.getKey() ? 'Key available on this device' : 'No key configured');
     if (savedConfig?.container)

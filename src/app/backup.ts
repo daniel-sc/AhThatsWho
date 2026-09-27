@@ -2,6 +2,7 @@ import { createSignal } from 'solid-js';
 import { liveQuery } from 'dexie';
 import { db, backupState, getMeta } from '../data/db';
 import { BackupCoordinator } from '../backup/coordinator';
+import { currentCloudConfig } from './cloud-config';
 import type { BackupProvider, CloudConfig } from '../providers/cloudkit';
 export const [cloudStatus, setCloudStatus] = createSignal('Not configured');
 export const [cloudSignedIn, setCloudSignedIn] = createSignal(false);
@@ -19,8 +20,10 @@ export async function initializeCloud() {
     return;
   }
   connecting = (async () => {
-    const config = await getMeta<CloudConfig | undefined>('cloudConfig', undefined);
-    if (!config?.container || !config.apiToken) return;
+    const saved = await getMeta<CloudConfig | undefined>('cloudConfig', undefined);
+    if (!saved) return;
+    const config = currentCloudConfig(saved);
+    if (!config.container || !config.apiToken) return;
     setCloudStatus('Sign-in required');
     const { connectCloud } = await import('../providers/cloudkit');
     const cloud = await connectCloud(config, (signed) => {

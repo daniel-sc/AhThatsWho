@@ -4,7 +4,7 @@
 
 A custom domain is optional; the default Cloudflare `workers.dev` HTTPS address is sufficient. Keep the chosen address stable before private import: IndexedDB, PWA installation and remembered keys are origin-specific, and CloudKit must allow that origin. Moving origins requires export/restore. The workspace is a local Git repository. In the managed coding environment, Git commands require execution outside the sandbox: the sandbox exposes a read-only `.git` placeholder that hides the actual repository. Build from a recorded commit with `BUILD_SHA=$(git rev-parse --short HEAD) mise exec -- npm run build`. The source repository is [daniel-sc/name-cue](https://github.com/daniel-sc/name-cue), created as private. Never commit the combined brief or private migration files.
 
-`wrangler.jsonc` serves `dist` as Workers Static Assets with SPA fallback. No application Worker or server proxy is required. Configure the approved project name/custom domain before deployment.
+`wrangler.jsonc` serves `dist` as Workers Static Assets with SPA fallback. No application Worker or server proxy is required. The Worker is `namecue`, serving https://namecue.aged-bread-195a.workers.dev. No custom domain is required.
 
 ```sh
 mise exec -- wrangler login
@@ -15,7 +15,11 @@ BUILD_SHA=$(git rev-parse --short HEAD) mise exec -- npm run build
 mise exec -- wrangler deploy
 ```
 
-A token can alternatively be supplied as `CLOUDFLARE_API_TOKEN` through the environment's secret mechanism. Do not put it in a `VITE_` variable, repository, chat or build assets. In restricted workspaces `WRANGLER_LOG_PATH=/tmp/namecue-wrangler` keeps CLI logs writable. The preexisting login in this environment was expired; no deployment was performed.
+A token can alternatively be supplied as `CLOUDFLARE_API_TOKEN` through the environment's secret mechanism. Do not put it in a `VITE_` variable, repository, chat or build assets. In restricted workspaces `WRANGLER_LOG_PATH=/tmp/namecue-wrangler` keeps CLI logs writable. Wrangler OAuth access was verified on 27 September 2026 and deployment succeeded. Live build: `a17b378`; Cloudflare version `1b0e9d01-31af-441b-8cd5-a846647ab493`.
+
+## GitHub Actions
+
+Every push and pull request runs mise-pinned installation, TypeScript checks, unit/integration tests, a production build and Chromium browser journeys. Builds include the source commit SHA. Successful runs retain `dist` as a downloadable artifact for 14 days. Deployment currently uses the local Wrangler login; CI does not hold Cloudflare credentials or automatically deploy.
 
 ## CloudKit production
 

@@ -2,7 +2,7 @@
 
 ## Stable origin and source
 
-Choose the final hostname before private import: IndexedDB is origin-specific. The workspace is a local Git repository. In the managed coding environment, Git commands require execution outside the sandbox: the sandbox exposes a read-only `.git` placeholder that hides the actual repository. Build from a recorded commit with `BUILD_SHA=$(git rev-parse --short HEAD) mise exec -- npm run build`. A remote has not been configured. Never commit the combined brief or private migration files.
+A custom domain is optional; the default Cloudflare `workers.dev` HTTPS address is sufficient. Keep the chosen address stable before private import: IndexedDB, PWA installation and remembered keys are origin-specific, and CloudKit must allow that origin. Moving origins requires export/restore. The workspace is a local Git repository. In the managed coding environment, Git commands require execution outside the sandbox: the sandbox exposes a read-only `.git` placeholder that hides the actual repository. Build from a recorded commit with `BUILD_SHA=$(git rev-parse --short HEAD) mise exec -- npm run build`. The source repository is [daniel-sc/name-cue](https://github.com/daniel-sc/name-cue), created as private. Never commit the combined brief or private migration files.
 
 `wrangler.jsonc` serves `dist` as Workers Static Assets with SPA fallback. No application Worker or server proxy is required. Configure the approved project name/custom domain before deployment.
 
@@ -49,7 +49,7 @@ Rollback only to builds supporting the stored global format. A future migration 
 
 - [OpenAI file transcription](https://developers.openai.com/api/docs/guides/speech-to-text): `gpt-transcribe`, multipart uploads, bounded hints, 25 MB limit and supported formats.
 - [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs): strict JSON schema, refusal/incomplete handling; local validation remains required.
-- [GPT-4.1 mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini): pinned model candidate; account access and name/ambiguity quality need real checks.
+- [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna): pinned model candidate; account access and name/ambiguity quality need real checks.
 - [Apple saveRecords](https://developer.apple.com/documentation/cloudkitjs/cloudkit.database/saverecords): Blob/File Assets and downloadURL.
 - [Apple performQuery](https://developer.apple.com/documentation/cloudkitjs/cloudkit.database/performquery): pagination using QueryResponse and moreComing.
 - [Apple setUpAuth](https://developer.apple.com/documentation/cloudkitjs/cloudkit.container/setupauth): session check and sign-in/out controls.

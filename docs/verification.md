@@ -1,6 +1,6 @@
 # Beta verification record
 
-Recorded 27 September 2026. Build `0.1.0-beta.1`; format 1. The recorded test build was made before Git initialization and is marked **uncommitted-at-build-time**. The implementation is now tracked in a local Git repository; use `git log` for the current commit. Git access in the managed coding environment requires execution outside its sandbox. See `build-record.json` for the verified asset fingerprint. Environment: remote Linux x86_64, mise Node 24.21.0, Chromium through Playwright 1.63.0, 390 px iPhone-13 *viewport emulation*. **No actual iPhone was available.**
+Recorded 27 September 2026. Build `0.1.0-beta.1`; format 1. The recorded test build was made before Git initialization and is marked **uncommitted-at-build-time**. The implementation is now tracked in a local Git repository; use `git log` for the current commit. Git access in the managed coding environment requires execution outside its sandbox. See `build-record.json` for the verified asset fingerprint. Environment: remote Linux x86_64, mise Node 24.21.0, Chromium through Playwright 1.63.0, 390 px iPhone-13 _viewport emulation_. **No actual iPhone was available.**
 
 **Release status: beta candidate; full personal beta blocked on operational configuration and real-device validation.** Software integration paths exist, but mocked responses and browser emulation do not establish real-provider/device success.
 
@@ -22,22 +22,22 @@ The initial full-DOM 5,000-household implementation took roughly 2.6 s to reload
 Latest Linux Chromium sample after these changes:
 
 | Synthetic households | Browser reload to populated names | Direct input event to two animation frames (no-match query) | Playwright fill to matching result observation |
-| --- | ---: | ---: | ---: |
-| 500 | 201 ms | 25 ms | 203 ms |
-| 5,000 | 473 ms | 32 ms | 474 ms |
+| -------------------- | --------------------------------: | ----------------------------------------------------------: | ---------------------------------------------: |
+| 500                  |                            201 ms |                                                       25 ms |                                         203 ms |
+| 5,000                |                            473 ms |                                                       32 ms |                                         474 ms |
 
 These are engineering observations, not installed cold-launch timings, and different measurements cover different work. Playwright observation includes driver/action overhead; it is not interchangeable with direct event-to-paint. Matching and no-match queries need repeated actual-device measurement. **The iPhone 1 s / 100 ms provisional budgets are unverified.**
 
 ## Concrete remaining release gates
 
-| Gate | Observed blocker / required evidence |
-| --- | --- |
-| Source repository | Local Git repository initialized; this is no longer a blocker. No remote is configured. Rebuild from the recorded release commit before deployment. |
-| Permanent HTTPS origin | Intended hostname/project not supplied. Existing Cloudflare auth is expired and cannot refresh noninteractively. Refresh `mise exec -- wrangler login` or supply an environment-scoped deployment token. |
-| Real OpenAI | No key available. Enter it through Settings, explicitly check model access, run the 3-case paid synthetic evaluation, then transcribe an actual iPhone recording. Pinning candidate `gpt-4.1-mini-2025-04-14` is not a completed quality evaluation. |
-| CloudKit | No container/website token/production schema/origin configuration available. Complete setup, real sign-in, Asset save/list/load/digest verification, retention and clean-install restore. Provider code follows Apple's documented API but is not validated against the user's account. |
-| iPhone | Physical device/iOS version, installed launch, permissions, lifecycle, Files, authentication-return behavior, production CSP and update checks all require user participation. |
-| Private migration | Proposals are prepared but require user review/application and a successful real cloud backup plus clean-install recovery. |
+| Gate                   | Observed blocker / required evidence                                                                                                                                                                                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source repository      | Local Git repository initialized; private GitHub repository: [daniel-sc/name-cue](https://github.com/daniel-sc/name-cue). Rebuild from the recorded release commit before deployment.                                                                                                   |
+| Permanent HTTPS origin | Intended hostname/project not supplied. Existing Cloudflare auth is expired and cannot refresh noninteractively. Refresh `mise exec -- wrangler login` or supply an environment-scoped deployment token.                                                                                |
+| Real OpenAI            | No key available. Enter it through Settings, explicitly check model access, run the 3-case paid synthetic evaluation, then transcribe an actual iPhone recording. Selecting candidate `gpt-6-luna` with `low` reasoning is not a completed quality evaluation.                          |
+| CloudKit               | No container/website token/production schema/origin configuration available. Complete setup, real sign-in, Asset save/list/load/digest verification, retention and clean-install restore. Provider code follows Apple's documented API but is not validated against the user's account. |
+| iPhone                 | Physical device/iOS version, installed launch, permissions, lifecycle, Files, authentication-return behavior, production CSP and update checks all require user participation.                                                                                                          |
+| Private migration      | Proposals are prepared but require user review/application and a successful real cloud backup plus clean-install recovery.                                                                                                                                                              |
 
 ## Actual iPhone acceptance checklist — all pending
 

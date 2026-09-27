@@ -52,6 +52,8 @@ it('requests strict output without provider storage and binds the supplied base 
   expect(p.baseVersion).toBe(r.versionId);
   expect(p.removals.length).toBeGreaterThan(0);
   const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
+  expect(payload.model).toBe('gpt-6-luna');
+  expect(payload.reasoning).toEqual({ effort: 'low' });
   expect(payload.store).toBe(false);
   expect(payload.text.format.strict).toBe(true);
 });

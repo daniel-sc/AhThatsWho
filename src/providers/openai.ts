@@ -10,7 +10,7 @@ import {
 } from '../domain/types';
 import { normalize, wordMatch } from '../domain/search';
 import { removals } from '../capture/application';
-export const PARSER_MODEL = 'gpt-4.1-mini-2025-04-14'; // Pinned candidate; real account evaluation is a release gate.
+export const PARSER_MODEL = 'gpt-6-luna'; // Pinned candidate; real account evaluation is a release gate.
 export const TRANSCRIPTION_MODEL = 'gpt-transcribe';
 let sessionKey = '';
 export function getKey() {
@@ -153,6 +153,7 @@ export async function generate(
     'responses',
     JSON.stringify({
       model: PARSER_MODEL,
+      reasoning: { effort: 'low' },
       store: false,
       max_output_tokens: 7000,
       instructions:

@@ -29,7 +29,7 @@ Manual editing, lookup, history, trash and inbox work without accounts or keys. 
 
 Capture text or audio now, process/review later. Saved audio is local only, chunked while recording and removed after Apply/Discard. Processing sends capture text and candidate household data to OpenAI only on explicit action. The model never writes the database. Review Current/Proposed, including changed/removed facts. A changed target invalidates application; a receipt makes duplicate Apply harmless.
 
-OpenAI key: Settings, optionally remember on this device. Default is memory only. Check model access explicitly, then run the three-case synthetic parser evaluation. The pinned parser candidate is `gpt-4.1-mini-2025-04-14`; transcription uses `gpt-transcribe`. Real account validation is pending. No routine test makes model calls.
+OpenAI key: Settings, optionally remember on this device. Default is memory only. Check model access explicitly, then run the three-case synthetic parser evaluation. The parser candidate is `gpt-6-luna` with explicit `low` reasoning; transcription uses `gpt-transcribe`. Real account validation is pending. No routine test makes model calls.
 
 Configure CloudKit only after selecting the permanent HTTPS origin. [Setup and deployment](docs/deployment.md) documents schema, sign-in, backup/recovery and CSP. The app loads Apple's SDK only after lookup can render and only if CloudKit is configured. This trusted script can access origin-local remembered credentials.
 

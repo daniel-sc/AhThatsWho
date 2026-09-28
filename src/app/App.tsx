@@ -65,6 +65,36 @@ export default function App() {
   const [importing, setImporting] = createSignal(false);
   const [completed, setCompleted] = createSignal(false);
   const [online, setOnline] = createSignal(navigator.onLine);
+  let cancelSearchScroll = () => {};
+  onCleanup(() => cancelSearchScroll());
+  function scrollSearchAfterKeyboard(input: HTMLInputElement) {
+    cancelSearchScroll();
+    const viewport = window.visualViewport;
+    const scroll = () => {
+      cancelSearchScroll();
+      if (input.isConnected && document.activeElement === input)
+        input.scrollIntoView({ block: 'start', behavior: 'instant' });
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const resized = () => {
+      clearTimeout(timer);
+      // iOS can report the new size before its keyboard animation finishes.
+      timer = setTimeout(scroll, 350);
+    };
+    const cancel = () => cancelSearchScroll();
+    cancelSearchScroll = () => {
+      clearTimeout(timer);
+      viewport?.removeEventListener('resize', resized);
+      input.removeEventListener('blur', cancel);
+      document.removeEventListener('touchmove', cancel);
+      document.removeEventListener('wheel', cancel);
+      cancelSearchScroll = () => {};
+    };
+    viewport?.addEventListener('resize', resized);
+    input.addEventListener('blur', cancel);
+    document.addEventListener('touchmove', cancel, { passive: true });
+    document.addEventListener('wheel', cancel, { passive: true });
+  }
   let captureHints: Capture['hints'] = {};
   let disposed = false;
   let persistWrites = Promise.resolve();
@@ -334,13 +364,7 @@ export default function App() {
                       aria-label="Search names and details"
                       placeholder="A name, a place, a small detail…"
                       value={ui().query}
-                      onFocus={(e) => {
-                        const input = e.currentTarget;
-                        requestAnimationFrame(() => {
-                          if (document.activeElement === input)
-                            input.scrollIntoView({ block: 'start', behavior: 'instant' });
-                        });
-                      }}
+                      onFocus={(e) => scrollSearchAfterKeyboard(e.currentTarget)}
                       onInput={(e) => {
                         setUI({ ...ui(), query: e.currentTarget.value, homeAnchor: undefined });
                         persist();

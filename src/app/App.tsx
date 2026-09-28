@@ -700,15 +700,23 @@ export default function App() {
           disabled={recording() || importing()}
           onClick={home}
         >
-          <span aria-hidden="true">⌂</span>Home
+          <span aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" />
+            </svg>
+          </span>
+          Home
         </button>
         <button
           classList={{ active: ui().screen === 'capture' }}
           disabled={recording() || importing()}
           onClick={capture}
         >
-          <span class="capture-nav-icon" aria-hidden="true">
-            +
+          <span aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="3" width="18" height="18" rx="4" />
+              <path d="M12 8v8M8 12h8" />
+            </svg>
           </span>
           Capture
         </button>
@@ -718,7 +726,10 @@ export default function App() {
           onClick={() => navigate('inbox')}
         >
           <span aria-hidden="true">
-            ▤
+            <svg viewBox="0 0 24 24">
+              <path d="m3 13 3-9h12l3 9v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
+              <path d="M3 13h5l2 3h4l2-3h5" />
+            </svg>
             <Show when={unresolved().length}>
               <b>{unresolved().length}</b>
             </Show>

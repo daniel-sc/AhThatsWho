@@ -400,8 +400,20 @@ main {
 }
 .bottom-nav button > span {
   position: relative;
-  font-size: 1.5rem;
-  line-height: 28px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+}
+.bottom-nav svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .bottom-nav .active {
   color: #234a38;
@@ -413,15 +425,6 @@ main {
   background: #748e55;
   border-radius: 5px;
   margin-top: 2px;
-}
-.bottom-nav .capture-nav-icon {
-  background: var(--green);
-  color: #fffefa;
-  border-radius: 10px;
-  width: 39px;
-  height: 28px;
-  font-size: 1.65rem;
-  line-height: 25px;
 }
 .bottom-nav b {
   font-size: 0.58rem;

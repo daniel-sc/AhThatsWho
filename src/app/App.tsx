@@ -326,131 +326,140 @@ export default function App() {
                     +
                   </button>
                 </div>
-                <label class="search">
-                  <span aria-hidden="true">⌕</span>
-                  <input
-                    type="search"
-                    aria-label="Search names and details"
-                    placeholder="A name, a place, a small detail…"
-                    value={ui().query}
-                    onInput={(e) => {
-                      setUI({ ...ui(), query: e.currentTarget.value, homeAnchor: undefined });
-                      persist();
-                    }}
-                  />
-                </label>
-                <div class="filters">
-                  <button
-                    classList={{ selected: !ui().context }}
-                    onClick={() => {
-                      setUI({ ...ui(), context: '', homeAnchor: undefined });
-                      persist();
-                    }}
-                  >
-                    All
-                  </button>
-                  <For each={contexts().filter((c) => c.favorite || c.id === ui().context)}>
-                    {(c) => (
-                      <button
-                        classList={{ selected: ui().context === c.id }}
-                        onClick={() => {
-                          setUI({ ...ui(), context: c.id, homeAnchor: undefined });
-                          persist();
-                        }}
-                      >
-                        {c.name}
-                      </button>
-                    )}
-                  </For>
-                  <Show when={contexts().some((c) => !c.favorite)}>
-                    <label class="context-picker">
-                      <span class="sr-only">Other contexts</span>
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          if (e.currentTarget.value) {
-                            setUI({
-                              ...ui(),
-                              context: e.currentTarget.value,
-                              homeAnchor: undefined,
-                            });
-                            persist();
-                          }
-                        }}
-                      >
-                        <option value="">More…</option>
-                        <For each={contexts().filter((c) => !c.favorite)}>
-                          {(c) => <option value={c.id}>{c.name}</option>}
-                        </For>
-                      </select>
-                    </label>
-                  </Show>
-                </div>
-                <Show when={results().fallback}>
-                  <p class="notice">
-                    No matches in {contexts().find((c) => c.id === ui().context)?.name}. Showing
-                    matches from other contexts.{' '}
+                <div class="search-results">
+                  <label class="search">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                      type="search"
+                      aria-label="Search names and details"
+                      placeholder="A name, a place, a small detail…"
+                      value={ui().query}
+                      onFocus={(e) => {
+                        const input = e.currentTarget;
+                        requestAnimationFrame(() => {
+                          if (document.activeElement === input)
+                            input.scrollIntoView({ block: 'start', behavior: 'instant' });
+                        });
+                      }}
+                      onInput={(e) => {
+                        setUI({ ...ui(), query: e.currentTarget.value, homeAnchor: undefined });
+                        persist();
+                      }}
+                    />
+                  </label>
+                  <div class="filters">
                     <button
-                      class="quiet"
+                      classList={{ selected: !ui().context }}
                       onClick={() => {
                         setUI({ ...ui(), context: '', homeAnchor: undefined });
                         persist();
                       }}
                     >
-                      Show all contexts
+                      All
                     </button>
-                  </p>
-                </Show>
-                <div class="list-heading" role="status" aria-live="polite">
-                  <span>
-                    {results().rows.length}{' '}
-                    {results().rows.length === 1 ? 'HOUSEHOLD' : 'HOUSEHOLDS'}
-                  </span>
-                  <span>Last edited</span>
-                </div>
-                <HouseholdList
-                  rows={results().rows}
-                  contexts={contexts()}
-                  query={ui().query}
-                  restoreAnchor={ui().homeAnchor}
-                  open={openHousehold}
-                />
-                <Show when={!results().rows.length}>
-                  <div class="empty-state">
-                    <span class="empty-icon" aria-hidden="true">
-                      N·
-                    </span>
-                    <h2>
-                      {ui().query
-                        ? 'No familiar names yet?'
-                        : ui().context
-                          ? 'This context is empty.'
-                          : 'A place for the people you know.'}
-                    </h2>
-                    <p>
-                      {ui().query
-                        ? 'Try another detail, or capture something new.'
-                        : 'Add a household or save a quick note. Your notebook works offline, without an account.'}
-                    </p>
-                    <div class="actions">
-                      <Show when={ui().query}>
+                    <For each={contexts().filter((c) => c.favorite || c.id === ui().context)}>
+                      {(c) => (
                         <button
+                          classList={{ selected: ui().context === c.id }}
                           onClick={() => {
-                            setUI({ ...ui(), query: '', homeAnchor: undefined });
+                            setUI({ ...ui(), context: c.id, homeAnchor: undefined });
                             persist();
                           }}
                         >
-                          Clear search
+                          {c.name}
                         </button>
-                      </Show>
-                      <button class="primary" onClick={newHousehold}>
-                        Add household
-                      </button>
-                      <button onClick={capture}>Capture a note</button>
-                      <button onClick={() => navigate('settings')}>Import or restore</button>
-                    </div>
+                      )}
+                    </For>
+                    <Show when={contexts().some((c) => !c.favorite)}>
+                      <label class="context-picker">
+                        <span class="sr-only">Other contexts</span>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.currentTarget.value) {
+                              setUI({
+                                ...ui(),
+                                context: e.currentTarget.value,
+                                homeAnchor: undefined,
+                              });
+                              persist();
+                            }
+                          }}
+                        >
+                          <option value="">More…</option>
+                          <For each={contexts().filter((c) => !c.favorite)}>
+                            {(c) => <option value={c.id}>{c.name}</option>}
+                          </For>
+                        </select>
+                      </label>
+                    </Show>
                   </div>
-                </Show>
+                  <Show when={results().fallback}>
+                    <p class="notice">
+                      No matches in {contexts().find((c) => c.id === ui().context)?.name}. Showing
+                      matches from other contexts.{' '}
+                      <button
+                        class="quiet"
+                        onClick={() => {
+                          setUI({ ...ui(), context: '', homeAnchor: undefined });
+                          persist();
+                        }}
+                      >
+                        Show all contexts
+                      </button>
+                    </p>
+                  </Show>
+                  <div class="list-heading" role="status" aria-live="polite">
+                    <span>
+                      {results().rows.length}{' '}
+                      {results().rows.length === 1 ? 'HOUSEHOLD' : 'HOUSEHOLDS'}
+                    </span>
+                    <span>Last edited</span>
+                  </div>
+                  <HouseholdList
+                    rows={results().rows}
+                    contexts={contexts()}
+                    query={ui().query}
+                    restoreAnchor={ui().homeAnchor}
+                    open={openHousehold}
+                  />
+                  <Show when={!results().rows.length}>
+                    <div class="empty-state">
+                      <span class="empty-icon" aria-hidden="true">
+                        N·
+                      </span>
+                      <h2>
+                        {ui().query
+                          ? 'No familiar names yet?'
+                          : ui().context
+                            ? 'This context is empty.'
+                            : 'A place for the people you know.'}
+                      </h2>
+                      <p>
+                        {ui().query
+                          ? 'Try another detail, or capture something new.'
+                          : 'Add a household or save a quick note. Your notebook works offline, without an account.'}
+                      </p>
+                      <div class="actions">
+                        <Show when={ui().query}>
+                          <button
+                            onClick={() => {
+                              setUI({ ...ui(), query: '', homeAnchor: undefined });
+                              persist();
+                            }}
+                          >
+                            Clear search
+                          </button>
+                        </Show>
+                        <button class="primary" onClick={newHousehold}>
+                          Add household
+                        </button>
+                        <button onClick={capture}>Capture a note</button>
+                        <button onClick={() => navigate('settings')}>Import or restore</button>
+                      </div>
+                    </div>
+                  </Show>
+                </div>
               </section>
             </Show>
             <Show when={ui().screen === 'household' && current()}>

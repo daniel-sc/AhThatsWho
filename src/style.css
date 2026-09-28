@@ -208,6 +208,11 @@ main {
   align-self: center;
   margin-bottom: 12px;
 }
+/* Keep enough room to scroll search to the top, even with no matches. */
+.search-results {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 .search {
   position: relative;
   display: flex;
@@ -225,6 +230,7 @@ main {
   color: #839274;
 }
 .search input {
+  scroll-margin-top: 12px;
   border: 0;
   margin: 0;
   background: transparent;

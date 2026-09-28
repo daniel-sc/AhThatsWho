@@ -80,15 +80,24 @@ export function HouseholdList(props: {
   function Row(p: { record: HouseholdRecord }) {
     let button!: HTMLButtonElement;
     onMount(() => {
+      let frame: number | undefined;
       const observer = new ResizeObserver((entries) => {
         const height =
           entries[0]?.borderBoxSize?.[0]?.blockSize || button.getBoundingClientRect().height;
         const k = key(p.record);
-        if (height && Math.abs((sizes().get(k) || 142) - height) > 1)
-          setSizes((old) => new Map(old).set(k, height));
+        if (frame !== undefined) cancelAnimationFrame(frame);
+        // Updating the rendered rows during resize delivery can trigger an observer loop.
+        frame = requestAnimationFrame(() => {
+          frame = undefined;
+          if (k === key(p.record) && height && Math.abs((sizes().get(k) || 142) - height) > 1)
+            setSizes((old) => new Map(old).set(k, height));
+        });
       });
       observer.observe(button);
-      onCleanup(() => observer.disconnect());
+      onCleanup(() => {
+        observer.disconnect();
+        if (frame !== undefined) cancelAnimationFrame(frame);
+      });
     });
     return (
       <button

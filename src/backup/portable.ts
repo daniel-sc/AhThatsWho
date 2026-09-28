@@ -104,7 +104,12 @@ export function sanitize(b: Backup): Backup {
       contextNames: { ...r.contextNames },
     })),
     inbox: b.inbox.map(cleanCapture),
-    preferences: { resume: b.preferences.resume },
+    preferences: {
+      resume: b.preferences.resume,
+      ...(b.preferences.recognitionLanguages !== undefined
+        ? { recognitionLanguages: [...b.preferences.recognitionLanguages] }
+        : {}),
+    },
   };
 }
 export async function snapshot(d = db): Promise<Backup> {

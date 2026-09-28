@@ -1,4 +1,6 @@
-import { db, dirty } from '../data/db';
+import { defaultRecognitionLanguages } from '../domain/languages';
+import type { Preferences } from '../domain/types';
+import { db, dirty, getMeta } from '../data/db';
 import { assert } from '../domain/integrity';
 import { uuid, now } from '../domain/types';
 import { storeProposal } from './application';
@@ -18,6 +20,8 @@ export async function processCapture(id: string) {
       db.households.toArray(),
       db.contexts.toArray(),
     ]);
+    const preferences = await getMeta<Preferences>('preferences', { resume: true });
+    const languages = preferences.recognitionLanguages ?? defaultRecognitionLanguages;
     if (c.kind === 'audio' && !c.transcript && !c.audioMissing) {
       const audio = c.audioId && (await db.audio.get(c.audioId));
       assert(audio && audio.chunks.length, 'Recording is unavailable. Enter the source as text.');
@@ -26,6 +30,8 @@ export async function processCapture(id: string) {
         audio.mime,
         rows,
         contexts,
+        languages,
+        c.hints,
       );
       const accepted = await db.transaction('rw', [db.inbox, db.meta], async () => {
         const current = await db.inbox.get(id);
@@ -41,7 +47,7 @@ export async function processCapture(id: string) {
       if (!accepted) return;
       c = (await db.inbox.get(id))!;
     }
-    const p = await api.generate(c, rows, contexts);
+    const p = await api.generate(c, rows, contexts, languages);
     await storeProposal(id, p, attempt);
   } catch (error) {
     await db.transaction('rw', [db.inbox, db.meta], async () => {

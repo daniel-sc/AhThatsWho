@@ -1,3 +1,4 @@
+import { recognitionLanguages } from './languages';
 import { FORMAT_VERSION, type Backup, type Household, type BirthDate } from './types';
 export function assert(ok: unknown, message: string): asserts ok {
   if (!ok) throw new Error(message);
@@ -216,6 +217,16 @@ export function validateBackup(input: unknown): asserts input is Backup {
   unique(inbox.map((c) => String(c.id)));
   object(input.preferences);
   assert(typeof input.preferences.resume === 'boolean', 'Invalid preferences');
+  if (input.preferences.recognitionLanguages !== undefined) {
+    array(input.preferences.recognitionLanguages, recognitionLanguages.length);
+    assert(
+      input.preferences.recognitionLanguages.every((code) =>
+        recognitionLanguages.some((language) => language.code === code),
+      ),
+      'Invalid recognition language',
+    );
+    unique(input.preferences.recognitionLanguages as string[]);
+  }
 }
 export function semantic(h: Household) {
   return JSON.stringify({

@@ -93,6 +93,7 @@ export interface AudioRecord {
 }
 export interface Preferences {
   resume: boolean;
+  recognitionLanguages?: string[];
 }
 export interface Backup {
   format: 'namecue';

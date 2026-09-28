@@ -1,3 +1,5 @@
+import { recognitionLanguages, defaultRecognitionLanguages } from '../domain/languages';
+import type { Preferences } from '../domain/types';
 import { createSignal, onMount, Show, For } from 'solid-js';
 import { db, getMeta, setMeta, backupState, saveContext, deleteContext, dirty } from '../data/db';
 import { snapshot, download, importPreview, replaceData, recoverSafety } from '../backup/portable';
@@ -23,6 +25,7 @@ export function Settings(props: {
   const [key, setKeyInput] = createSignal('');
   const [remember, setRemember] = createSignal(false);
   const [keyStatus, setKeyStatus] = createSignal('');
+  const [languages, setLanguages] = createSignal<string[]>(defaultRecognitionLanguages);
   const [resume, setResume] = createSignal(true);
   const [preview, setPreview] = createSignal<Backup>();
   const [state, setState] = createSignal<BackupState>();
@@ -32,7 +35,9 @@ export function Settings(props: {
   const [info, setInfo] = createSignal('');
   const [privateNote, setPrivateNote] = createSignal('');
   onMount(async () => {
-    setResume((await getMeta('preferences', { resume: true })).resume);
+    const preferences = await getMeta<Preferences>('preferences', { resume: true });
+    setResume(preferences.resume);
+    setLanguages(preferences.recognitionLanguages ?? defaultRecognitionLanguages);
     setState(await backupState());
     const savedConfig = await getMeta<CloudConfig | undefined>('cloudConfig', undefined);
     setConfig(currentCloudConfig(savedConfig));
@@ -55,6 +60,13 @@ export function Settings(props: {
     } finally {
       setBusy(false);
     }
+  }
+  async function savePreferences(changes: Partial<Preferences>) {
+    await db.transaction('rw', db.meta, async () => {
+      const preferences = await getMeta<Preferences>('preferences', { resume: true });
+      await setMeta('preferences', { ...preferences, ...changes });
+      await dirty();
+    });
   }
   async function listCloud() {
     if (!provider()) throw new Error('Connect CloudKit first');
@@ -123,6 +135,33 @@ export function Settings(props: {
           <p class="muted">
             For transcription and suggested edits. Manual use works without a key.
           </p>
+          <fieldset disabled={busy()}>
+            <legend>Recognition languages</legend>
+            <p class="fine">
+              Select all languages you use for recordings and text. Select none for automatic
+              detection.
+            </p>
+            <For each={recognitionLanguages}>
+              {(language) => (
+                <label class="check">
+                  <input
+                    type="checkbox"
+                    checked={languages().includes(language.code)}
+                    onChange={(e) => {
+                      const next = e.currentTarget.checked
+                        ? [...languages(), language.code]
+                        : languages().filter((code) => code !== language.code);
+                      void act(async () => {
+                        await savePreferences({ recognitionLanguages: next });
+                        setLanguages(next);
+                      });
+                    }}
+                  />
+                  {language.name}
+                </label>
+              )}
+            </For>
+          </fieldset>
           <p class="fine">{keyStatus()}</p>
           <label>
             API key
@@ -487,12 +526,7 @@ export function Settings(props: {
               checked={resume()}
               onChange={(e) => {
                 setResume(e.currentTarget.checked);
-                void act(() =>
-                  db.transaction('rw', db.meta, async () => {
-                    await setMeta('preferences', { resume: resume() });
-                    await dirty();
-                  }),
-                );
+                void act(() => savePreferences({ resume: resume() }));
               }}
             />
             Resume where I left off

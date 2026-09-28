@@ -383,3 +383,19 @@ describe('backup coordinator', () => {
     expect(s.pendingSnapshot).toBeUndefined();
   });
 });
+
+it('round-trips recognition languages while accepting older backups', async () => {
+  const d = database();
+  const b = fixtures(1);
+  await replaceData(b, d);
+  await setMeta('preferences', { resume: false, recognitionLanguages: ['de', 'en'] }, d);
+  const exported = await snapshot(d);
+  expect(exported.preferences).toEqual({ resume: false, recognitionLanguages: ['de', 'en'] });
+  await replaceData(parseBackup(JSON.stringify(exported)), d);
+  expect((await snapshot(d)).preferences).toEqual(exported.preferences);
+  exported.preferences.recognitionLanguages = [];
+  await replaceData(exported, d);
+  expect((await snapshot(d)).preferences.recognitionLanguages).toEqual([]);
+  exported.preferences.recognitionLanguages = ['invalid'];
+  expect(() => parseBackup(JSON.stringify(exported))).toThrow('Invalid recognition language');
+});

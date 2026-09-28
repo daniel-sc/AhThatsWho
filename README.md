@@ -31,6 +31,8 @@ Capture text or audio now, process/review later. Saved audio is local only, chun
 
 OpenAI key: Settings, optionally remember on this device. Default is memory only. Check model access explicitly, then run the three-case synthetic parser evaluation. The parser candidate is `gpt-6-luna` with explicit `low` reasoning; transcription uses `gpt-transcribe`. Real account validation is pending. No routine test makes model calls.
 
+Settings → Recognition languages accepts multiple selections (for example, German and English). German is the default; clear all selections for automatic detection. Selected languages guide both transcription and LLM conversion. Generated notes follow the source language. Transcription prioritizes names from the selected household and context, using deduplicated, bounded keyword hints.
+
 Configure CloudKit only after selecting the permanent HTTPS origin. [Setup and deployment](docs/deployment.md) documents schema, sign-in, backup/recovery and CSP. The app loads Apple's SDK only after lookup can render and only if CloudKit is configured. This trusted script can access origin-local remembered credentials.
 
 ## Small module map
@@ -48,7 +50,7 @@ No server API, app authentication, telemetry, contact/photo model, vector search
 
 Global format version is 1. Imports and local databases with unsupported versions are refused; no historical pre-v1 format is invented. Future format changes must add sequential deterministic transforms for current data, revisions and imports together. Saves preserve existing IDs and displaced provenance; semantic no-ops do not create history. Local operational view state is separate from portable content.
 
-Exports contain contexts, households including trash, history, inbox text/transcripts/proposals/receipts, and the resume preference. Keys, provider tokens, audio, transient attempts/errors, drafts and search state are excluded. Imported objects are sanitized through the same allowlist. Safety snapshots survive replacement. Recovery switches to a new dataset generation so old upload completions cannot acknowledge new data.
+Exports contain contexts, households including trash, history, inbox text/transcripts/proposals/receipts, and preferences for resume and recognition languages. Keys, provider tokens, audio, transient attempts/errors, drafts and search state are excluded. Imported objects are sanitized through the same allowlist. Safety snapshots survive replacement. Recovery switches to a new dataset generation so old upload completions cannot acknowledge new data.
 
 Only one active device is supported. Immediate closure can interrupt recording or defer backup. A force-kill before the browser supplies audio cannot be made durable by the app. A clean recovery needs a verified cloud or JSON snapshot; missing raw audio and keys are stated explicitly.
 

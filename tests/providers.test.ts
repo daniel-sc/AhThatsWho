@@ -1,5 +1,11 @@
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
-import { generate, setKey, forgetKey } from '../src/providers/openai';
+import {
+  generate,
+  transcribe,
+  transcriptionKeywords,
+  setKey,
+  forgetKey,
+} from '../src/providers/openai';
 import { fixtures } from '../src/domain/fixtures';
 import { uuid, now, type Capture } from '../src/domain/types';
 const storage = new Map<string, string>();
@@ -90,4 +96,53 @@ it.each([401, 429, 500])('does not automatically retry HTTP %s', async (status) 
   fetchMock.mockResolvedValue(new Response('{}', { status }));
   await expect(generate(capture(), b.households, b.contexts)).rejects.toThrow();
   expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
+it.each([{ languages: ['de', 'en'] }, { languages: [] }])(
+  'passes language selection $languages to both providers',
+  async ({ languages }) => {
+    const b = fixtures(1);
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ text: 'Hallo, hello' })));
+    await transcribe(new Blob(['audio']), 'audio/webm', b.households, b.contexts, languages);
+    const form = fetchMock.mock.calls[0][1].body as FormData;
+    expect(form.getAll('languages[]')).toEqual(languages);
+    expect(form.has('language')).toBe(false);
+    expect(form.getAll('keywords[]').length).toBeGreaterThan(0);
+    fetchMock.mockResolvedValueOnce(
+      reply({ action: 'ambiguous', candidateIds: [], contextSuggestions: [], reason: 'Unclear' }),
+    );
+    await generate(capture(), b.households, b.contexts, languages);
+    const payload = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(JSON.parse(payload.input).expectedLanguages).toEqual(languages);
+  },
+);
+it('prioritizes selected household and context, deduplicates and bounds whole keywords', () => {
+  const b = fixtures(100);
+  const selected = b.households[99];
+  selected.household.people = [
+    { id: 'special', firstName: { value: 'Jörg' }, lastName: { value: 'Müller' } },
+  ];
+  b.households[98].household.people = structuredClone(selected.household.people);
+  b.households[0].deletedAt = now();
+  b.households[0].household.people = [{ id: 'deleted', firstName: { value: 'DeletedName' } }];
+  const keywords = transcriptionKeywords(b.households, b.contexts, {
+    householdId: selected.household.id,
+  });
+  expect(keywords[0]).toBe('Jörg Müller');
+  expect(keywords.filter((k) => k === 'Jörg Müller')).toHaveLength(1);
+  expect(keywords).not.toContain('DeletedName');
+  expect(keywords.length).toBeLessThanOrEqual(50);
+  expect(keywords.join('').length).toBeLessThanOrEqual(1500);
+  expect(keywords.some((k) => /[<>\r\n]/.test(k))).toBe(false);
+});
+
+it('keeps context names ahead of unrelated names when keyword capacity is exhausted', () => {
+  const b = fixtures(100);
+  b.households.forEach((r) => {
+    r.household.contextIds = [];
+  });
+  b.households[99].household.contextIds = ['work'];
+  const keywords = transcriptionKeywords(b.households, b.contexts, { contextId: 'work' });
+  expect(keywords.slice(0, 3)).toEqual(['Amelie Example 100', 'Robin 100', 'Work']);
+  expect(keywords).not.toContain('Robin 99');
 });

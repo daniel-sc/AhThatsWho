@@ -11,6 +11,8 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
     transcriptions++;
     expect(route.request().headers()['content-type']).toContain('multipart/form-data');
     const body = route.request().postDataBuffer()!.toString('latin1');
+    expect(body).toContain('name="languages[]"\r\n\r\nde');
+    expect(body).toContain('name="languages[]"\r\n\r\nen');
     expect(body).toMatch(/capture\.(webm|m4a)/);
     expect(body).toMatch(/audio\/(webm|mp4)/);
     await route.fulfill({ json: { text: 'Met Beatrice at the synthetic pottery studio.' } });
@@ -18,6 +20,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   await page.route('https://api.openai.com/v1/responses', async (route) => {
     proposals++;
     const input = JSON.parse(route.request().postDataJSON().input);
+    expect(input.expectedLanguages).toEqual(['de', 'en']);
     expect(input.source).toContain('Also likes jazz.');
     expect(input.source).toContain('Met Beatrice');
     if (proposals === 1) {
@@ -52,6 +55,10 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByLabel('German', { exact: true })).toBeChecked();
+  await page.getByLabel('English', { exact: true }).check();
+  await expect(page.getByLabel('English', { exact: true })).toBeEnabled();
+  await page.getByLabel('Resume where I left off').uncheck();
   await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
   await page.getByRole('button', { name: 'Save key', exact: true }).click();
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
@@ -67,6 +74,8 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   expect(proposals).toBe(1);
   await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.getByLabel('German', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('English', { exact: true })).toBeChecked();
   await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
   await page.getByRole('button', { name: 'Save key', exact: true }).click();
   await page.getByRole('button', { name: /Inbox/ }).click();

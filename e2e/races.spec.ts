@@ -86,8 +86,6 @@ test('an ambiguous provider reply goes to target review and a stale proposal is 
   await expect(page.getByRole('heading', { name: 'Choose a household' })).toBeVisible();
   await page.getByRole('button', { name: /Elena Example 1/ }).click();
   await page.getByLabel('Memory cue', { exact: true }).fill('Red bicycle');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Proposed', exact: true })).toBeVisible();
   const other = await context.newPage();
   await other.goto('/');
   await other.getByRole('button', { name: 'Home', exact: true }).click();
@@ -95,8 +93,12 @@ test('an ambiguous provider reply goes to target review and a stale proposal is 
   await other.getByRole('button', { name: 'Edit', exact: true }).click();
   await other.getByLabel('Memory cue', { exact: true }).fill('A newer cue');
   await other.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByText('This household changed after the proposal was made.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Apply proposal' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Save & apply', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('stale');
+  await expect(page.getByLabel('Memory cue', { exact: true })).toHaveValue('Red bicycle');
+  await page.getByRole('button', { name: 'Cancel & discard draft' }).click();
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Elena Example 1/ })).toContainText('A newer cue');
 });
 test('microphone denial leaves text capture usable', async ({ page }) => {
   await page.addInitScript(() => {

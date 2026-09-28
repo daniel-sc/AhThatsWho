@@ -1,4 +1,4 @@
-import { createSignal, For, Show, onMount } from 'solid-js';
+import { createSignal, createUniqueId, For, Show, onMount } from 'solid-js';
 import { db, getMeta, setMeta, saveContext } from '../data/db';
 import { validDate } from '../domain/integrity';
 import {
@@ -18,6 +18,9 @@ export function Editor(props: {
   cancel: () => void;
   error: (e: unknown) => void;
   title?: string;
+  saveLabel?: string;
+  sourceText?: string;
+  changes?: (h: Household) => string[];
 }) {
   const [h, setH] = createSignal<Household>(structuredClone(props.initial));
   const [ready, setReady] = createSignal(false);
@@ -59,6 +62,7 @@ export function Editor(props: {
     });
   }
   async function save() {
+    if (busy()) return;
     setBusy(true);
     try {
       await writes;
@@ -74,6 +78,40 @@ export function Editor(props: {
     await writes;
     await db.meta.delete(props.draftKey);
     props.cancel();
+  }
+  function CertaintyControl(p: {
+    label: string;
+    value: Value['certainty'];
+    disabled?: boolean;
+    change: (value: Value['certainty']) => void;
+  }) {
+    const name = createUniqueId();
+    const options = [
+      { value: '', label: 'Unmarked' },
+      { value: 'uncertain', label: 'Unsure' },
+      { value: 'approximate', label: 'Approximate' },
+    ] as const;
+    return (
+      <fieldset class="certainty-control" disabled={p.disabled}>
+        <legend>{p.label}</legend>
+        <div class="certainty-options">
+          <For each={options}>
+            {(option) => (
+              <label>
+                <input
+                  type="radio"
+                  name={name}
+                  value={option.value}
+                  checked={(p.value || '') === option.value}
+                  onChange={() => p.change(option.value || undefined)}
+                />
+                <span>{option.label}</span>
+              </label>
+            )}
+          </For>
+        </div>
+      </fieldset>
+    );
   }
   function ValueInput(p: {
     id: string;
@@ -97,23 +135,16 @@ export function Editor(props: {
             }
           />
         </label>
-        <label class="certainty">
-          Certainty
-          <select
-            value={v()?.certainty || ''}
-            onChange={(e) =>
-              person(p.id, (x) => {
-                if (x[p.field])
-                  x[p.field]!.certainty = (e.currentTarget.value ||
-                    undefined) as Value['certainty'];
-              })
-            }
-          >
-            <option value="">Unmarked</option>
-            <option value="uncertain">Unsure</option>
-            <option value="approximate">Approximate</option>
-          </select>
-        </label>
+        <CertaintyControl
+          label={`${p.label} certainty`}
+          value={v()?.certainty}
+          disabled={!v()}
+          change={(certainty) =>
+            person(p.id, (x) => {
+              if (x[p.field]) x[p.field]!.certainty = certainty;
+            })
+          }
+        />
       </div>
     );
   }
@@ -157,8 +188,8 @@ export function Editor(props: {
       }
     }
     return (
-      <fieldset>
-        <legend>Optional date</legend>
+      <fieldset class="birth-date-editor">
+        <legend>Birth date</legend>
         <label>
           Precision
           <select
@@ -217,23 +248,15 @@ export function Editor(props: {
               </label>
             </Show>
           </div>
-          <label>
-            Date certainty
-            <select
-              value={current()?.certainty || ''}
-              onChange={(e) =>
-                person(p.id, (x) => {
-                  if (x.birthDate)
-                    x.birthDate.certainty =
-                      (e.currentTarget.value as Value['certainty']) || undefined;
-                })
-              }
-            >
-              <option value="">Unmarked</option>
-              <option value="uncertain">Unsure</option>
-              <option value="approximate">Approximate</option>
-            </select>
-          </label>
+          <CertaintyControl
+            label="Date certainty"
+            value={current()?.certainty}
+            change={(certainty) =>
+              person(p.id, (x) => {
+                if (x.birthDate) x.birthDate.certainty = certainty;
+              })
+            }
+          />
         </Show>
         <Show when={issue()}>
           <small role="status">{issue()}</small>
@@ -252,77 +275,93 @@ export function Editor(props: {
       <p class="muted" role="status">
         {draftStatus() || 'Changes apply only when you save.'}
       </p>
+      <Show when={props.sourceText}>
+        <h2>Source note</h2>
+        <p class="source preserve">{props.sourceText}</p>
+      </Show>
       <Show when={ready()}>
         <form
+          class="household-form"
           onSubmit={(e) => {
             e.preventDefault();
             void save();
           }}
         >
           <For each={h().people.map((p) => p.id)}>
-            {(id) => (
-              <fieldset class="person-editor">
-                <legend>Person</legend>
-                <ValueInput id={id} field="firstName" label="First name" />
-                <ValueInput id={id} field="lastName" label="Last name" />
-                <label>
-                  Role
-                  <select
-                    value={h().people.find((p) => p.id === id)?.role || ''}
-                    onChange={(e) =>
-                      person(
-                        id,
-                        (p) => (p.role = (e.currentTarget.value as Person['role']) || undefined),
-                      )
-                    }
+            {(id) => {
+              const p = h().people.find((p) => p.id === id);
+              const hasDetails = !!(p?.role || p?.birthDate || p?.ageNote || p?.notes);
+              return (
+                <fieldset class="person-editor">
+                  <legend>Person</legend>
+                  <ValueInput id={id} field="firstName" label="First name" />
+                  <ValueInput id={id} field="lastName" label="Last name" />
+                  <details open={hasDetails}>
+                    <summary>More details: role, birth date and notes</summary>
+                    <label>
+                      Role
+                      <select
+                        value={h().people.find((p) => p.id === id)?.role || ''}
+                        onChange={(e) =>
+                          person(
+                            id,
+                            (p) =>
+                              (p.role = (e.currentTarget.value as Person['role']) || undefined),
+                          )
+                        }
+                      >
+                        <option value="">Not specified</option>
+                        <option value="adult">Adult</option>
+                        <option value="child">Child</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+                    <DateInput id={id} />
+                    <ValueInput id={id} field="ageNote" label="Age or original date wording" />
+                    <label>
+                      Person notes
+                      <textarea
+                        value={h().people.find((p) => p.id === id)?.notes || ''}
+                        onInput={(e) =>
+                          person(id, (p) => (p.notes = e.currentTarget.value || undefined))
+                        }
+                        maxLength={20000}
+                      />
+                    </label>
+                  </details>
+                  <button
+                    type="button"
+                    class="quiet danger"
+                    onClick={() => update((h) => (h.people = h.people.filter((p) => p.id !== id)))}
                   >
-                    <option value="">Not specified</option>
-                    <option value="adult">Adult</option>
-                    <option value="child">Child</option>
-                    <option value="other">Other</option>
-                  </select>
-                </label>
-                <DateInput id={id} />
-                <ValueInput id={id} field="ageNote" label="Age or original date wording" />
-                <label>
-                  Person notes
-                  <textarea
-                    value={h().people.find((p) => p.id === id)?.notes || ''}
-                    onInput={(e) =>
-                      person(id, (p) => (p.notes = e.currentTarget.value || undefined))
-                    }
-                    maxLength={20000}
-                  />
-                </label>
-                <button
-                  type="button"
-                  class="quiet danger"
-                  onClick={() => update((h) => (h.people = h.people.filter((p) => p.id !== id)))}
-                >
-                  Remove person from draft
-                </button>
-              </fieldset>
-            )}
+                    Remove person from draft
+                  </button>
+                </fieldset>
+              );
+            }}
           </For>
           <button type="button" onClick={() => update((h) => h.people.push({ id: uuid() }))}>
             + Add person
           </button>
-          <label>
-            Memory cue
-            <input
-              value={h().cue || ''}
-              onInput={(e) => update((h) => (h.cue = e.currentTarget.value || undefined))}
-              maxLength={20000}
-            />
-          </label>
-          <label>
-            Household notes
-            <textarea
-              value={h().notes || ''}
-              onInput={(e) => update((h) => (h.notes = e.currentTarget.value || undefined))}
-              maxLength={20000}
-            />
-          </label>
+          <fieldset class="household-editor">
+            <legend>Household details</legend>
+            <label>
+              Memory cue
+              <input
+                value={h().cue || ''}
+                onInput={(e) => update((h) => (h.cue = e.currentTarget.value || undefined))}
+                maxLength={20000}
+              />
+            </label>
+            <label>
+              Household notes
+              <textarea
+                value={h().notes || ''}
+                onInput={(e) => update((h) => (h.notes = e.currentTarget.value || undefined))}
+                maxLength={20000}
+              />
+            </label>
+          </fieldset>
           <fieldset>
             <legend>Contexts</legend>
             <For each={props.contexts}>
@@ -362,9 +401,18 @@ export function Editor(props: {
               + Create context
             </button>
           </fieldset>
+          <Show when={props.changes?.(h()).length}>
+            <div class="notice">
+              <strong>Changed or removed facts</strong>
+              <ul>
+                <For each={props.changes?.(h())}>{(change) => <li>{change}</li>}</For>
+              </ul>
+              <p>Saving applies these changes. The previous version stays in History.</p>
+            </div>
+          </Show>
           <div class="actions sticky-actions">
             <button class="primary" disabled={busy()} type="submit">
-              {busy() ? 'Saving…' : 'Save'}
+              {busy() ? 'Saving…' : props.saveLabel || 'Save'}
             </button>
             <button type="button" disabled={busy()} onClick={() => void cancel()}>
               Cancel & discard draft

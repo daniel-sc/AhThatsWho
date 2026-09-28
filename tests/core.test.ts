@@ -17,6 +17,7 @@ import { parseBackup, validDate } from '../src/domain/integrity';
 import { snapshot, replaceData, recoverSafety, digest } from '../src/backup/portable';
 import {
   applyCapture,
+  saveAndApplyCapture,
   manualProposal,
   storeProposal,
   updateTranscript,
@@ -160,6 +161,21 @@ describe('capture application', () => {
     await expect(applyCapture(next.id, true, d)).rejects.toThrow('stale');
     expect((await d.households.get(first.householdId))?.household.notes).toBe('A newer fact');
   });
+  it('saves and applies edited suggestions once, and rolls back stale edits', async () => {
+    const d = database();
+    const { c, r } = await capture(d);
+    const edited = manualProposal({ ...r.household, cue: 'Edited suggestion' }, r);
+    const receipt = await saveAndApplyCapture(c.id, edited, d);
+    expect(await saveAndApplyCapture(c.id, edited, d)).toEqual(receipt);
+    expect((await d.households.get(r.household.id))?.household.cue).toBe('Edited suggestion');
+    expect(await d.revisions.count()).toBe(1);
+    const next = { ...c, id: uuid() };
+    await saveCapture(next, d);
+    await expect(saveAndApplyCapture(next.id, edited, d)).rejects.toThrow('stale');
+    expect((await d.inbox.get(next.id))?.proposal).toEqual(c.proposal);
+    expect((await d.inbox.get(next.id))?.receipt).toBeUndefined();
+    expect(await d.revisions.count()).toBe(1);
+  });
   it('requires acknowledgement of removals', async () => {
     const d = database();
     const { c } = await capture(d);
@@ -176,6 +192,8 @@ describe('capture application', () => {
     await updateTranscript(c.id, 'Corrected source', d);
     const updated = await d.inbox.get(c.id);
     expect(updated?.proposal).toBeUndefined();
+    expect(updated?.text).toBe('Corrected source');
+    expect(updated?.transcript).toBeUndefined();
     expect(updated?.attempt).toBeUndefined();
     expect(await storeProposal(c.id, c.proposal!, 'new-attempt', d)).toBe(false);
   });

@@ -64,19 +64,17 @@ test('context fallback, full-state resume, home reset and offline reload', async
 test('capture survives reload, manual proposal applies once', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Save for later' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Process now' })).toBeDisabled();
   await page.getByLabel('Capture text').fill('Met Beatrice at the pottery studio.');
   await page.getByRole('button', { name: 'Save for later' }).click();
-  // The panel closes only after the IndexedDB save commits; a click alone doesn't await it.
-  await expect(page.getByLabel('Capture text')).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'Your inbox' })).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Create new manually' }).click();
-  await page.getByRole('button', { name: '+ Add person' }).click();
   await page.getByLabel('First name', { exact: true }).fill('Beatrice');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Proposed', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Apply proposal' }).click();
+  await page.getByRole('button', { name: 'Save & apply', exact: true }).click();
   await expect(page.getByText('The names, together.')).toBeVisible();
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.getByRole('button', { name: /Beatrice/ })).toHaveCount(1);
@@ -90,6 +88,8 @@ test('import cancel, replacement and local safety recovery', async ({ page }) =>
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(fixtures(1))),
   });
+  await expect(page.getByRole('region', { name: 'Import preview' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
   await page.getByRole('button', { name: 'Cancel import' }).click();
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.locator('.household-row')).toHaveCount(3);

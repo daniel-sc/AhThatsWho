@@ -115,6 +115,20 @@ export async function applyCapture(id: string, acknowledged = false, d: NameCueD
   });
   return receipt;
 }
+// Keep the edited proposal and its application together: a stale save leaves both untouched.
+export async function saveAndApplyCapture(id: string, proposal: Proposal, d = db) {
+  return d.transaction(
+    'rw',
+    [d.inbox, d.households, d.contexts, d.revisions, d.meta, d.audio],
+    async () => {
+      const capture = await d.inbox.get(id);
+      if (capture?.receipt) return capture.receipt;
+      await storeProposal(id, proposal, undefined, d);
+      return applyCapture(id, true, d);
+    },
+  );
+}
+
 export async function discardCapture(id: string, d = db) {
   await d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
@@ -134,7 +148,10 @@ export async function updateTranscript(id: string, text: string, d = db) {
   await d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
     assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture is already completed');
-    c.transcript = text;
+    if (c.kind === 'text') {
+      c.text = text.trim();
+      delete c.transcript;
+    } else c.transcript = text.trim();
     c.stage = 'transcript-ready';
     c.updatedAt = now();
     delete c.proposal;

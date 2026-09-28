@@ -57,9 +57,11 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await page.getByLabel('Capture text', { exact: true }).fill('Also likes jazz.');
   await page.getByRole('button', { name: 'Record a voice note' }).click();
-  await expect(page.getByRole('button', { name: /Stop recording/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Stop & process/ })).toBeVisible();
   await page.waitForTimeout(1200);
-  await page.getByRole('button', { name: /Stop recording/ }).click();
+  expect(transcriptions).toBe(0);
+  expect(proposals).toBe(0);
+  await page.getByRole('button', { name: /Stop & process/ }).click();
   await expect(page.getByRole('alert').first()).toContainText('limit');
   expect(transcriptions).toBe(1);
   expect(proposals).toBe(1);
@@ -106,7 +108,7 @@ test('backgrounding a recording keeps it in Inbox without starting processing', 
   await page.goto('/');
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await page.getByRole('button', { name: 'Record a voice note' }).click();
-  await expect(page.getByRole('button', { name: /Stop recording/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Stop & process/ })).toBeVisible();
   await page.waitForTimeout(1200);
   await page.evaluate(() => {
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });

@@ -8,6 +8,7 @@ export function CapturePanel(props: {
   review: (id: string) => void;
   error: (e: unknown) => void;
   recording: (v: boolean) => void;
+  saved: () => void;
 }) {
   const [text, setText] = createSignal('');
   const [recording, setRecording] = createSignal(false);
@@ -55,6 +56,7 @@ export function CapturePanel(props: {
       });
   }
   async function record() {
+    processOnStop = false;
     setBusy(true);
     try {
       const r = await startRecording(
@@ -84,6 +86,7 @@ export function CapturePanel(props: {
     }
   }
   async function persist(process: boolean) {
+    if (busy()) return;
     setBusy(true);
     try {
       await writes;
@@ -111,7 +114,7 @@ export function CapturePanel(props: {
         props.review(c.id);
         const { processCapture } = await import('../capture/process');
         void processCapture(c.id).catch(props.error);
-      } else props.close();
+      } else props.saved();
     } catch (e) {
       props.error(e);
     } finally {
@@ -135,20 +138,24 @@ export function CapturePanel(props: {
         }}
       >
         <span aria-hidden="true">{recording() ? '■' : '●'}</span>{' '}
-        {recording() ? `Stop recording · ${seconds()}s` : 'Record a voice note'}
+        {recording() ? `Stop & process · ${seconds()}s` : 'Record a voice note'}
       </button>
+      <p class="fine">
+        Stop &amp; process saves your recording, then sends it to OpenAI for transcription and a
+        suggested update. You review the suggestion before applying it.
+      </p>
       <Show when={saved()}>
         <p role="status">
           {saved()?.audioMissing
             ? 'No audio was received. Add text below.'
             : saved()?.audioIncomplete
               ? 'Only received chunks were saved. Recording was interrupted; check playback in Inbox.'
-              : 'Audio saved on this device. Ready to process from Inbox.'}
+              : 'Audio saved on this device. Choose Save for later or Process now.'}
         </p>
       </Show>
       <p class="fine">
-        Audio stays on this device until applied or discarded. Only text and transcripts are backed
-        up.
+        A local copy of the audio is kept until applied or discarded. Only text and transcripts are
+        backed up.
       </p>
       <button class="quiet" onClick={() => input.focus()}>
         Write a note
@@ -169,15 +176,22 @@ export function CapturePanel(props: {
       <p class="fine" role="status">
         {status()}
       </p>
+      <p class="fine">
+        Process now sends your note and relevant notebook details to OpenAI for a suggestion. You
+        review it before applying.
+      </p>
       <div class="actions">
         <button
           class="primary"
-          disabled={busy() || recording() || !ready()}
+          disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
           onClick={() => void persist(false)}
         >
           Save for later
         </button>
-        <button disabled={busy() || recording() || !ready()} onClick={() => void persist(true)}>
+        <button
+          disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
+          onClick={() => void persist(true)}
+        >
           Process now
         </button>
       </div>

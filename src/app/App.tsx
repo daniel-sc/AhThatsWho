@@ -79,6 +79,7 @@ export default function App() {
     setError(
       e instanceof Error ? e.message : 'Something went wrong. Your saved data has been kept.',
     );
+    requestAnimationFrame(() => document.getElementById('app-error')?.focus());
   };
   const current = createMemo(() => rows().find((r) => r.household.id === ui().target));
   const activeCapture = createMemo(() => inbox().find((c) => c.id === ui().capture));
@@ -118,12 +119,15 @@ export default function App() {
       setUI({ ...ui(), homeScroll: window.scrollY, homeAnchor: anchor() });
     setUI({ ...ui(), screen, scroll, ...patch });
     setError('');
+    setNotice('');
     window.scrollTo(0, scroll);
     persist();
   }
   const home = () => {
     if (recording() || importing()) return;
     setUI({ ...initial });
+    setError('');
+    setNotice('');
     window.scrollTo(0, 0);
     persist();
   };
@@ -134,7 +138,13 @@ export default function App() {
       .catch(report);
   }
   function newHousehold() {
-    setEdit({ h: { ...emptyHousehold(), people: [{ id: crypto.randomUUID() }] } });
+    setEdit({
+      h: {
+        ...emptyHousehold(),
+        contextIds: ui().context ? [ui().context] : [],
+        people: [{ id: crypto.randomUUID() }],
+      },
+    });
     navigate('editor', { target: undefined });
   }
   function beginEdit() {
@@ -280,7 +290,7 @@ export default function App() {
       </header>
       <main id="main">
         <Show when={error()}>
-          <div class="notice error" role="alert">
+          <div id="app-error" class="notice error" role="alert" tabindex="-1">
             {error()}
             <button class="quiet" aria-label="Dismiss error" onClick={() => setError('')}>
               Dismiss
@@ -423,6 +433,16 @@ export default function App() {
                         : 'Add a household or save a quick note. Your notebook works offline, without an account.'}
                     </p>
                     <div class="actions">
+                      <Show when={ui().query}>
+                        <button
+                          onClick={() => {
+                            setUI({ ...ui(), query: '', homeAnchor: undefined });
+                            persist();
+                          }}
+                        >
+                          Clear search
+                        </button>
+                      </Show>
                       <button class="primary" onClick={newHousehold}>
                         Add household
                       </button>
@@ -535,6 +555,9 @@ export default function App() {
             </Show>
             <Show when={ui().screen === 'trash'}>
               <section>
+                <button class="quiet" onClick={() => navigate('settings')}>
+                  ← Settings
+                </button>
                 <h1>Trash</h1>
                 <p class="muted">Removed households stay here until you restore them.</p>
                 <For each={rows().filter((r) => r.deletedAt)}>
@@ -560,6 +583,11 @@ export default function App() {
               <CapturePanel
                 hints={captureHints}
                 close={() => navigate(ui().previous || 'home')}
+                saved={() => {
+                  setCompleted(false);
+                  navigate('inbox');
+                  setNotice('Saved to Inbox. Review it whenever you’re ready.');
+                }}
                 review={(id) => navigate('review', { capture: id })}
                 error={report}
                 recording={setRecording}
@@ -619,6 +647,12 @@ export default function App() {
                     </button>
                   )}
                 </For>
+                <Show when={completed() && !inbox().some((c) => c.stage === 'applied')}>
+                  <div class="empty-state">
+                    <h2>No completed captures yet.</h2>
+                    <p>Notes you apply to your notebook will appear here.</p>
+                  </div>
+                </Show>
                 <Show when={!unresolved().length && !completed()}>
                   <div class="empty-state">
                     <h2>Nothing waiting on you.</h2>
@@ -634,7 +668,12 @@ export default function App() {
                 rows={rows()}
                 contexts={contexts()}
                 back={() => navigate('inbox')}
-                applied={(id) => navigate('household', { target: id })}
+                applied={(id) =>
+                  void act(async () => {
+                    setRows(await db.households.toArray());
+                    navigate('household', { target: id });
+                  })
+                }
                 error={report}
                 editing={setReviewEditing}
               />

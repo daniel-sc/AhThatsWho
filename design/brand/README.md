@@ -1,6 +1,10 @@
 # AhThatsWho — Aha identity
 
-Selected direction: chunky black “ah!” lettering on acid yellow. The UI uses #f2ff00 accents, #151515 ink, and #faf9f2 canvas, with heavy system sans-serif headings. Danger and recording states retain red.
+The fixed identity is the AhThatsWho name and the approved chunky black “ah!” lettering. The selected design is Hello again / G — Margin notes: a coral header, compact open list, cobalt notebook margin, expressive first names, and readable surnames. See the [redesign brief](../../docs/redesign-brief.md) for the accepted decisions and validation.
+
+The palette is coral `#ff624f`, cobalt `#163bee`, ink text `#161616`, paper canvas `#fffefb`, white fields `#ffffff`, and supporting text `#56524c`. Search matches use yellow `#ffcc57`. Danger and recording retain red. The mark itself remains the exact approved black artwork; installation icons use coral backgrounds.
+
+Locally bundled Bricolage Grotesque provides expressive headings and readable names. Atkinson Hyperlegible Next carries controls, details, and forms. Font files and their SIL Open Font Licenses live in `src/assets/fonts/`; both fonts are precached for offline use. No runtime font service is required.
 
 Source: `aha-mark-source.png`, extracted from the approved first draft using the built-in image generation tool. Rebuild web and installation icons with `node scripts/icons.mjs`. A separate maskable icon keeps the mark inside the safe area. Generated delivery assets live in `public/`.
 

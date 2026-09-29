@@ -20,60 +20,77 @@ export function HouseholdView(props: {
   const names = () => h().people.filter((p) => p.role === 'adult' || !p.role);
   const others = () => h().people.filter((p) => p.role === 'child' || p.role === 'other');
   return (
-    <div class="household">
+    <div class="household" classList={{ 'household-compact': props.compact }}>
       <div class="names">
         <Show
           when={names().length}
           fallback={<span>{h().people.length ? 'Household' : 'Memory cue'}</span>}
         >
           <For each={names()}>
-            {(p, i) => (
-              <>
-                <Show when={i() > 0}>
-                  <span class="join"> & </span>
+            {(p) => (
+              <span class="person-name">
+                <Show when={p.firstName?.value}>
+                  <span class="first-name">
+                    <Highlight
+                      text={p.firstName?.value + certainty(p.firstName)}
+                      query={props.query}
+                    />
+                  </span>
                 </Show>
-                <Highlight
-                  text={personName(p) + certainty(p.firstName) + certainty(p.lastName)}
-                  query={props.query}
-                />
-              </>
+                <Show when={p.firstName?.value && p.lastName?.value}> </Show>
+                <Show when={p.lastName?.value}>
+                  <span class="last-name">
+                    <Highlight
+                      text={p.lastName?.value + certainty(p.lastName)}
+                      query={props.query}
+                    />
+                  </span>
+                </Show>
+                <Show when={!p.firstName?.value && !p.lastName?.value}>
+                  <span class="first-name">{personName(p)}</span>
+                </Show>
+              </span>
             )}
           </For>
         </Show>
       </div>
-      <Show when={others().length}>
-        <div class="members">
-          <For each={others()}>
-            {(p, i) => (
-              <>
-                <Show when={i() > 0}> · </Show>
-                <Highlight
-                  text={personName(p) + certainty(p.firstName) + certainty(p.lastName)}
-                  query={props.query}
-                />
-                <Show when={p.role === 'other'}> (other)</Show>
-              </>
-            )}
-          </For>
+      <Show when={others().length || h().contextIds.length}>
+        <div class="household-summary">
+          <Show when={others().length}>
+            <div class="members">
+              <For each={others()}>
+                {(p, i) => (
+                  <>
+                    <Show when={i() > 0}> · </Show>
+                    <Highlight
+                      text={personName(p) + certainty(p.firstName) + certainty(p.lastName)}
+                      query={props.query}
+                    />
+                    <Show when={p.role === 'other'}> (other)</Show>
+                  </>
+                )}
+              </For>
+            </div>
+          </Show>
+          <Show when={h().contextIds.length}>
+            <div class="tags">
+              <For each={h().contextIds}>
+                {(id) => (
+                  <span>
+                    <Highlight
+                      text={props.contexts.find((c) => c.id === id)?.name || 'Historical context'}
+                      query={props.query}
+                    />
+                  </span>
+                )}
+              </For>
+            </div>
+          </Show>
         </div>
       </Show>
       <Show when={h().cue}>
         <div class="cue">
           <Highlight text={h().cue} query={props.query} />
-        </div>
-      </Show>
-      <Show when={h().contextIds.length}>
-        <div class="tags">
-          <For each={h().contextIds}>
-            {(id) => (
-              <span>
-                <Highlight
-                  text={props.contexts.find((c) => c.id === id)?.name || 'Historical context'}
-                  query={props.query}
-                />
-              </span>
-            )}
-          </For>
         </div>
       </Show>
       <Show when={!props.compact}>

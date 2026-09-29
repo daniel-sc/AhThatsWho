@@ -11,8 +11,8 @@ export default defineConfig({
         name: 'AhThatsWho',
         short_name: 'AhThatsWho',
         description: 'Names, in context.',
-        theme_color: '#f2ff00',
-        background_color: '#faf9f2',
+        theme_color: '#ff624f',
+        background_color: '#fffefb',
         display: 'standalone',
         start_url: '/',
         icons: [
@@ -27,7 +27,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,ttf}'],
         navigateFallback: '/index.html',
         runtimeCaching: [],
       },

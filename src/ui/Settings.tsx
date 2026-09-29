@@ -592,6 +592,18 @@ export function Settings(props: {
             Names, in context. No analytics. Your notebook lives on this device, with optional
             private CloudKit backups.
           </p>
+          <p>
+            AhThatsWho is open source under the MIT license. Explore the code, report a bug, or
+            suggest an improvement on{' '}
+            <a
+              href="https://github.com/daniel-sc/AhThatsWho"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub (opens in a new tab)
+            </a>
+            .
+          </p>
           <p class="fine">
             {__BUILD__.version} · {__BUILD__.sha}
             <br />

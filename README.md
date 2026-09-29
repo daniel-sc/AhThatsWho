@@ -62,3 +62,7 @@ Only one active device is supported. Immediate closure can interrupt recording o
 No private source note is in this repository. The migration UI stages source lines in Inbox, retains source references, rejects repeat batches and leaves every application to review. A prepared private review file, if provided separately, must stay outside version control and public artifacts. Export current data before replacement, review every line, then verify cloud backup and clean-install recovery.
 
 The app is **AhThatsWho**. The registered Apple container remains `iCloud.me.cbfp.namecue`; no new container is needed. The cloud record type is `AhThatsWhoSnapshot`. Before switching origins, export any personal data. Older exports can be imported after changing their top-level `format` value to `ahthatswho`. Add the new origin to the existing CloudKit website token.
+
+## License
+
+AhThatsWho is open source under the [MIT license](LICENSE). Bundled fonts retain their [SIL Open Font Licenses](src/assets/fonts/); third-party dependencies retain their respective licenses.

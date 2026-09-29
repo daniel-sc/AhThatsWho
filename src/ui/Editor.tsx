@@ -27,10 +27,12 @@ export function Editor(props: {
   const [busy, setBusy] = createSignal(false);
   const [draftStatus, setDraftStatus] = createSignal('');
   let writes = Promise.resolve();
+  // Saving can unmount this editor and clear parent state before draft cleanup.
+  const draftKey = props.draftKey;
   let baseVersion = props.baseVersion;
   onMount(async () => {
     const draft = await getMeta<{ household: Household; baseVersion?: string } | undefined>(
-      props.draftKey,
+      draftKey,
       undefined,
     );
     if (draft) {
@@ -47,7 +49,7 @@ export function Editor(props: {
     setDraftStatus('Saving draft…');
     writes = writes
       .then(async () => {
-        await setMeta(props.draftKey, { household: next, baseVersion });
+        await setMeta(draftKey, { household: next, baseVersion });
         setDraftStatus('Local draft saved · not applied');
       })
       .catch((e) => {
@@ -67,7 +69,7 @@ export function Editor(props: {
     try {
       await writes;
       await props.save(h(), baseVersion);
-      await db.meta.delete(props.draftKey);
+      await db.meta.delete(draftKey);
     } catch (e) {
       props.error(e);
     } finally {
@@ -76,7 +78,7 @@ export function Editor(props: {
   }
   async function cancel() {
     await writes;
-    await db.meta.delete(props.draftKey);
+    await db.meta.delete(draftKey);
     props.cancel();
   }
   function CertaintyControl(p: {

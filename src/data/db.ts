@@ -13,14 +13,14 @@ import {
   type Revision,
 } from '../domain/types';
 import { assert, semantic, validateHousehold } from '../domain/integrity';
-export class NameCueDB extends Dexie {
+export class AhThatsWhoDB extends Dexie {
   households!: Table<HouseholdRecord, string>;
   contexts!: Table<Context, string>;
   revisions!: Table<Revision, string>;
   inbox!: Table<Capture, string>;
   audio!: Table<AudioRecord, string>;
   meta!: Table<{ key: string; value: unknown }, string>;
-  constructor(name = 'namecue') {
+  constructor(name = 'ahthatswho') {
     super(name);
     this.version(FORMAT_VERSION).stores({
       households: 'household.id,updatedAt,deletedAt',
@@ -32,7 +32,7 @@ export class NameCueDB extends Dexie {
     });
   }
 }
-export const db = new NameCueDB();
+export const db = new AhThatsWhoDB();
 export async function getMeta<T>(key: string, fallback: T, d = db): Promise<T> {
   return ((await d.meta.get(key))?.value as T) ?? fallback;
 }

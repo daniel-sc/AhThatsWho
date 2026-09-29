@@ -96,7 +96,7 @@ export interface Preferences {
   recognitionLanguages?: string[];
 }
 export interface Backup {
-  format: 'namecue';
+  format: 'ahthatswho';
   version: number;
   exportedAt: string;
   contexts: Context[];

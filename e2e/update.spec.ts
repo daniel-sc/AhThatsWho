@@ -18,13 +18,13 @@ test('a real waiting service worker prompts and cannot reload an editor', async 
       const registration = await navigator.serviceWorker.getRegistration();
       await registration!.update();
     });
-    await expect(page.getByRole('button', { name: 'Update NameCue' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Update NameCue' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Update AhThatsWho' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Update AhThatsWho' })).toBeDisabled();
     await page.getByRole('button', { name: 'Cancel & discard draft' }).click();
-    await expect(page.getByRole('button', { name: 'Update NameCue' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Update NameCue' }).click();
+    await expect(page.getByRole('button', { name: 'Update AhThatsWho' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Update AhThatsWho' }).click();
     await expect(page.getByRole('searchbox')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Update NameCue' })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Update AhThatsWho' })).not.toBeVisible();
   } finally {
     await writeFile(path, original);
   }

@@ -7,7 +7,7 @@ render(
     <ErrorBoundary
       fallback={
         <main>
-          <h1>NameCue could not open this screen.</h1>
+          <h1>AhThatsWho could not open this screen.</h1>
           <p>Your stored notebook has not been cleared. Reload to try again.</p>
           <button onClick={() => location.reload()}>Reload</button>
         </main>

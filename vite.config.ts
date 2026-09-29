@@ -8,8 +8,8 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'NameCue',
-        short_name: 'NameCue',
+        name: 'AhThatsWho',
+        short_name: 'AhThatsWho',
         description: 'Names, in context.',
         theme_color: '#183e35',
         background_color: '#f8f7f2',

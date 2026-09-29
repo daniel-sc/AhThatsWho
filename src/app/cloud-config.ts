@@ -7,7 +7,7 @@ export const DEFAULT_CLOUD_CONFIG: CloudConfig = {
   environment: 'production',
 };
 
-// For the hosted NameCue container, token rotation follows the deployed build.
+// For the hosted AhThatsWho container, token rotation follows the deployed build.
 // Explicit alternative containers/environments retain their device configuration.
 export function currentCloudConfig(saved?: CloudConfig): CloudConfig {
   if (

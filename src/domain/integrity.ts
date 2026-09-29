@@ -105,11 +105,11 @@ function record(r: unknown, contexts: Set<string>) {
 }
 export function validateBackup(input: unknown): asserts input is Backup {
   object(input);
-  assert(input.format === 'namecue', 'Not a NameCue backup');
+  assert(input.format === 'ahthatswho', 'Not an AhThatsWho backup');
   assert(
     input.version === FORMAT_VERSION,
     Number(input.version) > FORMAT_VERSION
-      ? 'This backup requires a newer NameCue version'
+      ? 'This backup requires a newer AhThatsWho version'
       : 'Unsupported backup version',
   );
   timestamp(input.exportedAt);

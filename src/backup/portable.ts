@@ -10,7 +10,7 @@ import {
   type Value,
 } from '../domain/types';
 import { parseBackup, validateBackup } from '../domain/integrity';
-import { db, getMeta, setMeta, backupState, type NameCueDB } from '../data/db';
+import { db, getMeta, setMeta, backupState, type AhThatsWhoDB } from '../data/db';
 const val = <T>(v: Value<T> | undefined): Value<T> | undefined =>
   v
     ? {
@@ -92,7 +92,7 @@ export function cleanCapture(c: Capture): Capture {
 }
 export function sanitize(b: Backup): Backup {
   return {
-    format: 'namecue',
+    format: 'ahthatswho',
     version: FORMAT_VERSION,
     exportedAt: b.exportedAt,
     contexts: b.contexts.map((c) => ({ id: c.id, name: c.name, favorite: c.favorite })),
@@ -115,7 +115,7 @@ export function sanitize(b: Backup): Backup {
 export async function snapshot(d = db): Promise<Backup> {
   return d.transaction('r', [d.contexts, d.households, d.revisions, d.inbox, d.meta], async () =>
     sanitize({
-      format: 'namecue',
+      format: 'ahthatswho',
       version: FORMAT_VERSION,
       exportedAt: now(),
       contexts: await d.contexts.toArray(),
@@ -133,7 +133,7 @@ export const digest = async (json: string) =>
 export function importPreview(json: string) {
   return sanitize(parseBackup(json));
 }
-export async function replaceData(input: Backup, d: NameCueDB = db) {
+export async function replaceData(input: Backup, d: AhThatsWhoDB = db) {
   validateBackup(input);
   const b = sanitize(input);
   return d.transaction(
@@ -183,7 +183,7 @@ export async function recoverSafety(d = db) {
   if (!safety) throw new Error('No previous local data is available');
   await replaceData(safety, d);
 }
-export function download(json: string, name = `namecue-${now().slice(0, 10)}.json`) {
+export function download(json: string, name = `ahthatswho-${now().slice(0, 10)}.json`) {
   const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;

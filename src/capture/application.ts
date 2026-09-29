@@ -1,4 +1,4 @@
-import { db, dirty, writeHousehold, type NameCueDB } from '../data/db';
+import { db, dirty, writeHousehold, type AhThatsWhoDB } from '../data/db';
 import { assert, validateHousehold } from '../domain/integrity';
 import {
   now,
@@ -47,7 +47,7 @@ export function removals(current: Household, proposed: Household) {
     if (!proposed.contextIds.includes(c)) changes.push(`Remove context reference: ${c}`);
   return changes;
 }
-export async function applyCapture(id: string, acknowledged = false, d: NameCueDB = db) {
+export async function applyCapture(id: string, acknowledged = false, d: AhThatsWhoDB = db) {
   const receipt = await d.transaction(
     'rw',
     [d.inbox, d.households, d.contexts, d.revisions, d.meta],
@@ -190,7 +190,7 @@ export function manualProposal(h: Household, current?: HouseholdRecord): Proposa
   };
 }
 
-async function cleanupAudio(id: string, d: NameCueDB) {
+async function cleanupAudio(id: string, d: AhThatsWhoDB) {
   await d.transaction('rw', [d.audio, d.inbox], async () => {
     await d.audio.where('captureId').equals(id).delete();
     await d.inbox.update(id, { audioId: undefined });

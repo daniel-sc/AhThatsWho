@@ -91,7 +91,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   const remaining = await page.evaluate(
     () =>
       new Promise<number>((resolve, reject) => {
-        const open = indexedDB.open('namecue');
+        const open = indexedDB.open('ahthatswho');
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const d = open.result;

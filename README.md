@@ -1,4 +1,4 @@
-# NameCue
+# AhThatsWho
 
 A personal, local-first name notebook. Solid + Vite + TypeScript, Dexie, plain CSS, vite-plugin-pwa; Cloudflare Workers Static Assets. People stay embedded in households. CloudKit is backup, not synchronization.
 
@@ -14,11 +14,11 @@ mise run check
 mise run e2e
 ```
 
-Node and Wrangler are pinned in `mise.toml`; npm dependencies are locked. If this managed environment makes mise's state read-only, prefix commands with `MISE_STATE_DIR=/tmp/namecue-mise-state MISE_TRUSTED_CONFIG_PATHS=/workspace/name-cue`. Chromium/Playwright needs permission to launch processes in restricted environments. Standard machines can use `mise exec -- npx playwright install chromium` if needed.
+Node and Wrangler are pinned in `mise.toml`; npm dependencies are locked. If this managed environment makes mise's state read-only, prefix commands with `MISE_STATE_DIR=/tmp/ahthatswho-mise-state MISE_TRUSTED_CONFIG_PATHS="$PWD"`. Chromium/Playwright needs permission to launch processes in restricted environments. Standard machines can use `mise exec -- npx playwright install chromium` if needed.
 
 ```sh
-mise exec -- npm run fixtures -- 500 /tmp/namecue-synthetic.json
-mise exec -- npm run fixtures -- 5000 /tmp/namecue-stress.json
+mise exec -- npm run fixtures -- 500 /tmp/ahthatswho-synthetic.json
+mise exec -- npm run fixtures -- 5000 /tmp/ahthatswho-stress.json
 ```
 
 Import synthetic fixtures through Settings. Import previews and replaces the dataset after confirmation, retaining a local safety copy. Never mix synthetic households with private notes.
@@ -57,3 +57,5 @@ Only one active device is supported. Immediate closure can interrupt recording o
 ## Private migration
 
 No private source note is in this repository. The migration UI stages source lines in Inbox, retains source references, rejects repeat batches and leaves every application to review. A prepared private review file, if provided separately, must stay outside version control and public artifacts. Export current data before replacement, review every line, then verify cloud backup and clean-install recovery.
+
+The app is **AhThatsWho**. The registered Apple container remains `iCloud.me.cbfp.namecue`; no new container is needed. The cloud record type is `AhThatsWhoSnapshot`. Before switching origins, export any personal data. Older exports can be imported after changing their top-level `format` value to `ahthatswho`. Add the new origin to the existing CloudKit website token.

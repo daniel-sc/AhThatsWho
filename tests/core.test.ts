@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import {
-  NameCueDB,
+  AhThatsWhoDB,
   saveHousehold,
   saveCapture,
   saveContext,
@@ -25,13 +25,13 @@ import {
 import { BackupCoordinator } from '../src/backup/coordinator';
 import type { BackupProvider } from '../src/providers/cloudkit';
 import { now, uuid, type Capture } from '../src/domain/types';
-const databases: NameCueDB[] = [];
+const databases: AhThatsWhoDB[] = [];
 function database() {
-  const d = new NameCueDB(`test-${uuid()}`);
+  const d = new AhThatsWhoDB(`test-${uuid()}`);
   databases.push(d);
   return d;
 }
-async function seed(d: NameCueDB) {
+async function seed(d: AhThatsWhoDB) {
   const b = fixtures(3);
   await replaceData(b, d);
   return b;
@@ -123,7 +123,7 @@ describe('transactions and history', () => {
   });
 });
 describe('capture application', () => {
-  async function capture(d: NameCueDB) {
+  async function capture(d: AhThatsWhoDB) {
     const b = await seed(d);
     const r = b.households[0];
     const c: Capture = {

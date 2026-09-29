@@ -252,7 +252,7 @@ export function Settings(props: {
             {state()?.lastSuccess ? new Date(state()!.lastSuccess!).toLocaleString() : 'None yet'}
           </p>
           <p class="fine">
-            Uploads run while NameCue is open. Untranscribed audio remains local only.
+            Uploads run while AhThatsWho is open. Untranscribed audio remains local only.
           </p>
           <details>
             <summary>CloudKit configuration</summary>
@@ -261,7 +261,7 @@ export function Settings(props: {
               <input
                 value={config().container}
                 onInput={(e) => setConfig({ ...config(), container: e.currentTarget.value })}
-                placeholder="iCloud.com.example.NameCue"
+                placeholder="iCloud.com.example.AhThatsWho"
               />
             </label>
             <label>
@@ -551,7 +551,7 @@ export function Settings(props: {
           </p>
         </div>
         <div class="settings-block">
-          <h2>About NameCue</h2>
+          <h2>About AhThatsWho</h2>
           <p>
             Names, in context. No analytics. Your notebook lives on this device, with optional
             private CloudKit backups.

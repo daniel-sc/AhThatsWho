@@ -16,7 +16,7 @@ export function fixtures(count = 500): Backup {
     'Béla',
   ];
   return {
-    format: 'namecue',
+    format: 'ahthatswho',
     version: FORMAT_VERSION,
     exportedAt: at,
     contexts: [

@@ -303,12 +303,10 @@ export default function App() {
   return (
     <>
       <header class="app-header">
-        <button class="brand" onClick={home} aria-label="NameCue home">
-          <span class="brand-icon" aria-hidden="true">
-            N<span>·</span>
-          </span>
+        <button class="brand" onClick={home} aria-label="AhThatsWho home">
+          <img class="brand-icon" src="/icon.svg" alt="" aria-hidden="true" />
           <span>
-            NameCue<small>Names, in context.</small>
+            AhThatsWho<small>Names, in context.</small>
           </span>
         </button>
         <div class="header-right">
@@ -339,7 +337,7 @@ export default function App() {
           <div class="notice">
             Update available. {blocked() ? 'Finish recording or editing before updating.' : ''}
             <button disabled={blocked()} onClick={() => void sw.updateServiceWorker(true)}>
-              Update NameCue
+              Update AhThatsWho
             </button>
           </div>
         </Show>

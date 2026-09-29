@@ -145,23 +145,11 @@ small,
   font-weight: 400;
 }
 .brand-icon {
-  display: grid;
-  place-items: center;
-  position: relative;
+  display: block;
+  flex-shrink: 0;
   width: 42px;
-  height: 45px;
-  border-radius: 12px;
-  background: var(--green);
-  color: #f7f4e4;
-  font-family: Georgia, serif;
-  font-size: 1.8rem;
-  font-weight: 400;
-}
-.brand-icon span {
-  position: absolute;
-  right: 6px;
-  bottom: -1px;
-  color: #c6d89c;
+  height: 42px;
+  border-radius: 10px;
 }
 .header-right {
   display: flex;

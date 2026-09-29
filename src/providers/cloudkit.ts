@@ -128,7 +128,7 @@ export async function connectCloud(config: CloudConfig, onAuth: (signedIn: boole
     async list() {
       const result: CloudSnapshot[] = [];
       let q: unknown = {
-        recordType: 'NameCueSnapshot',
+        recordType: 'AhThatsWhoSnapshot',
         sortBy: [{ fieldName: 'exportedAt', ascending: false }],
       };
       do {
@@ -146,7 +146,7 @@ export async function connectCloud(config: CloudConfig, onAuth: (signedIn: boole
       checked(
         await database.saveRecords({
           recordName: id,
-          recordType: 'NameCueSnapshot',
+          recordType: 'AhThatsWhoSnapshot',
           fields: {
             payload: { value: new Blob([json], { type: 'application/json' }) },
             exportedAt: { value: b.exportedAt },
@@ -162,7 +162,7 @@ export async function connectCloud(config: CloudConfig, onAuth: (signedIn: boole
       assert(record, 'Snapshot no longer exists');
       const asset = record.fields.payload?.value as { downloadURL?: string };
       assert(asset?.downloadURL, 'Snapshot asset is missing');
-      const url = new URL(asset.downloadURL.replace('${f}', 'namecue.json'));
+      const url = new URL(asset.downloadURL.replace('${f}', 'ahthatswho.json'));
       assert(
         url.protocol === 'https:' &&
           (url.hostname.endsWith('.icloud-content.com') ||

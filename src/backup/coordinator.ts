@@ -1,4 +1,4 @@
-import { db, backupState, setMeta, type NameCueDB } from '../data/db';
+import { db, backupState, setMeta, type AhThatsWhoDB } from '../data/db';
 import { digest, snapshot } from './portable';
 import { now, uuid } from '../domain/types';
 import type { BackupProvider } from '../providers/cloudkit';
@@ -7,7 +7,7 @@ export class BackupCoordinator {
   private running = false;
   constructor(
     private provider: BackupProvider,
-    private d: NameCueDB = db,
+    private d: AhThatsWhoDB = db,
     private notify: (s: string) => void = () => {},
   ) {}
   async authorize() {

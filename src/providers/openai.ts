@@ -15,16 +15,16 @@ export const PARSER_MODEL = 'gpt-6-luna'; // Pinned candidate; real account eval
 export const TRANSCRIPTION_MODEL = 'gpt-transcribe';
 let sessionKey = '';
 export function getKey() {
-  return sessionKey || localStorage.getItem('namecue.openai') || '';
+  return sessionKey || localStorage.getItem('ahthatswho.openai') || '';
 }
 export function setKey(key: string, remember: boolean) {
   sessionKey = key.trim();
-  localStorage.removeItem('namecue.openai');
-  if (remember && sessionKey) localStorage.setItem('namecue.openai', sessionKey);
+  localStorage.removeItem('ahthatswho.openai');
+  if (remember && sessionKey) localStorage.setItem('ahthatswho.openai', sessionKey);
 }
 export function forgetKey() {
   sessionKey = '';
-  localStorage.removeItem('namecue.openai');
+  localStorage.removeItem('ahthatswho.openai');
 }
 async function request(path: string, body?: BodyInit, json = false) {
   const key = getKey();
@@ -174,7 +174,7 @@ Existing IDs must come ONLY from candidates; new IDs must start tmp:. Household/
         contexts,
         nameIndex: index.slice(0, 5000),
       }),
-      text: { format: { type: 'json_schema', name: 'namecue_proposal', strict: true, schema } },
+      text: { format: { type: 'json_schema', name: 'ahthatswho_proposal', strict: true, schema } },
     }),
     true,
   );

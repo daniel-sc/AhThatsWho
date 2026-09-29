@@ -214,6 +214,9 @@ main {
   padding: 32px 28px 124px;
   margin: auto;
 }
+main[data-screen='home'] {
+  padding-top: 8px;
+}
 .section-heading {
   display: flex;
   align-items: center;
@@ -319,6 +322,12 @@ main {
   width: 115px;
   background: var(--surface);
 }
+.lookup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 4px 0 10px;
+}
 .list-heading {
   display: flex;
   flex: 1;
@@ -333,6 +342,13 @@ main {
 .household-list {
   /* Measured row offsets own anchoring; all row spacing stays inside each measured button. */
   overflow-anchor: none;
+}
+.household-list.has-households {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+}
+.household-list > [aria-posinset='1'] .household-row {
+  padding-top: 6px;
 }
 .household-row {
   border: 0;
@@ -366,6 +382,28 @@ main {
   line-height: 1.1;
   letter-spacing: -0.025em;
   color: var(--accent);
+}
+.person-name {
+  display: block;
+  margin-bottom: 1px;
+}
+.first-name {
+  margin-right: 0.12em;
+}
+.last-name:not(:only-child) {
+  font-family: 'Atkinson', 'Segoe UI', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--ink);
+}
+.household-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 7px;
 }
 .members {
   font-size: 1.0625rem;
@@ -583,6 +621,9 @@ main[data-screen='household'] section > .household > .names {
   line-height: 1.15;
   margin-bottom: 10px;
 }
+main[data-screen='household'] section > .household > .names .last-name:not(:only-child) {
+  font-size: 1.25rem;
+}
 main[data-screen='household'] section > .fine {
   margin-top: 20px;
 }
@@ -654,6 +695,10 @@ legend + * {
   border-radius: 0;
   padding: 8px 0 0;
   background: transparent;
+}
+.household-form > fieldset {
+  border-left: 3px solid var(--accent);
+  border-radius: 0;
 }
 .household-form input,
 .household-form select,
@@ -757,7 +802,7 @@ legend + * {
   color: var(--paper);
   font-weight: 600;
   font-size: 1.125rem;
-  border-radius: 8px;
+  border-radius: 6px;
   margin: 24px 0 12px;
 }
 .record-button span {
@@ -798,6 +843,8 @@ legend + * {
   background: var(--paper);
   border-radius: 6px;
   padding: 18px;
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--accent);
 }
 .capture-panel .actions {
   margin-top: 16px;
@@ -994,65 +1041,6 @@ mark {
   padding-top: 30px;
 }
 
-main[data-screen='home'] {
-  padding-top: 8px;
-}
-.lookup-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin: 4px 0 10px;
-}
-.household-list.has-households {
-  border-left: 3px solid var(--accent);
-  padding-left: 12px;
-}
-.household-list > [aria-posinset='1'] .household-row {
-  padding-top: 6px;
-}
-.household-summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 7px;
-}
-.person-name {
-  display: block;
-  margin-bottom: 1px;
-}
-.first-name {
-  margin-right: 0.12em;
-}
-.last-name {
-  font-family: 'Atkinson', 'Segoe UI', sans-serif;
-  font-size: 1rem;
-  font-weight: 500;
-  letter-spacing: normal;
-  color: var(--ink);
-}
-.last-name:only-child {
-  font-family: var(--display);
-  font-size: inherit;
-  font-weight: 800;
-  letter-spacing: -0.025em;
-  color: var(--accent);
-}
-main[data-screen='household'] section > .household > .names .last-name:not(:only-child) {
-  font-size: 1.25rem;
-}
-.household-form > fieldset {
-  border-left: 3px solid var(--accent);
-  border-radius: 0;
-}
-.capture-panel textarea {
-  border: 2px solid var(--ink);
-  box-shadow: 4px 4px 0 var(--accent);
-}
-.capture-panel .record-button {
-  border-radius: 6px;
-}
 @media (max-width: 540px) {
   .app-header {
     padding: 16px 18px 12px;
@@ -1071,9 +1059,6 @@ main[data-screen='household'] section > .household > .names .last-name:not(:only
   }
   main {
     padding: 24px 18px 124px;
-  }
-  main[data-screen='home'] {
-    padding-top: 8px;
   }
   h1 {
     font-size: 2.5rem;
@@ -1109,9 +1094,6 @@ main[data-screen='household'] section > .household > .names .last-name:not(:only
   .empty-state .actions {
     display: grid;
     grid-template-columns: 1fr;
-  }
-  .capture-panel h1 {
-    font-size: 2.5rem;
   }
   .person-detail,
   .history-card,

@@ -303,7 +303,7 @@ export default function App() {
   });
   return (
     <>
-      <header class="app-header" data-screen={ui().screen}>
+      <header class="app-header">
         <button class="brand" onClick={home} aria-label="AhThatsWho home">
           <img class="brand-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
           <span>AhThatsWho</span>

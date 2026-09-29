@@ -56,4 +56,6 @@ Search and filters, global fallback, whole-household rows, list virtualization a
 - Both font families loaded after an offline production reload.
 - Synthetic Chromium measurements: 500 households reloaded to names in 363 ms; 5,000 in 561 ms. Direct search input event to paint was 19 ms and 36 ms respectively. These are Linux viewport-emulation observations, not physical iPhone measurements or measured human lookup speed.
 
-No deployment was performed as part of this redesign. Physical Safari/iPhone and live-provider limitations in [the beta verification record](verification.md) still apply.
+Before merging, unused header and compact-view styling hooks were removed, component rules were consolidated, redundant mobile overrides were removed, and surname-only styling was simplified to use inheritance. All 40 before/after screenshots (ten screen states at four widths) were byte-identical, with no horizontal overflow or browser errors.
+
+The stable [branch preview](https://branch-383014a048064c91-ahthatswho.aged-bread-195a.workers.dev) follows `design/hello-again`. Merging into `main` triggers production deployment through the existing checked-artifact workflow. Physical Safari/iPhone and live-provider limitations in [the beta verification record](verification.md) still apply.

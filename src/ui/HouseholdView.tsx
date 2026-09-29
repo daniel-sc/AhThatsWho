@@ -20,7 +20,7 @@ export function HouseholdView(props: {
   const names = () => h().people.filter((p) => p.role === 'adult' || !p.role);
   const others = () => h().people.filter((p) => p.role === 'child' || p.role === 'other');
   return (
-    <div class="household" classList={{ 'household-compact': props.compact }}>
+    <div class="household">
       <div class="names">
         <Show
           when={names().length}

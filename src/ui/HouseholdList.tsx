@@ -120,7 +120,13 @@ export function HouseholdList(props: {
     );
   }
   return (
-    <div ref={list} class="household-list" role="list" aria-label="Matching households">
+    <div
+      ref={list}
+      class="household-list"
+      classList={{ 'has-households': props.rows.length > 0 }}
+      role="list"
+      aria-label="Matching households"
+    >
       <div aria-hidden="true" style={{ height: `${offsets()[range().start]}px` }} />
       <For each={props.rows.slice(range().start, range().end)}>
         {(r, i) => (

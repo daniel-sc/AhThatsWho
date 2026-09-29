@@ -274,7 +274,7 @@ export function Editor(props: {
     <section>
       <div class="section-heading">
         <div>
-          <p class="eyebrow">NOT YET APPLIED</p>
+          <p class="eyebrow">Not yet applied</p>
           <h1>{props.title || 'Edit household'}</h1>
         </div>
       </div>

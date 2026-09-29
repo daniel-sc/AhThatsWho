@@ -12,18 +12,18 @@ test('synthetic 500 / 5000 measurements and phone-sized layout', async ({ page }
     });
     await page.getByRole('button', { name: 'Replace & use this dataset' }).click();
     await page.getByRole('button', { name: 'Home', exact: true }).click();
-    await expect(page.locator('.list-heading')).toContainText(`${count} HOUSEHOLDS`);
+    await expect(page.locator('.list-heading')).toContainText(`${count} households`);
     await page.evaluate(async () => {
       await navigator.serviceWorker.ready;
     });
     const t = Date.now();
     await page.reload();
-    await expect(page.locator('.list-heading')).toContainText(`${count} HOUSEHOLDS`);
+    await expect(page.locator('.list-heading')).toContainText(`${count} households`);
     const cold = Date.now() - t;
     const start = Date.now();
     await page.getByRole('searchbox').fill('mattias robin');
     await expect(page.locator('.list-heading')).toContainText(
-      `${Math.floor((count + 3) / 12)} HOUSEHOLDS`,
+      `${Math.floor((count + 3) / 12)} households`,
     );
     const eventToPaint = await page.evaluate(async () => {
       const input = document.querySelector<HTMLInputElement>('input[type=search]')!;

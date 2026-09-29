@@ -93,3 +93,56 @@ test('optional certainty stays editable and existing uncertainty opens on return
   await expect(certainty.getByRole('radio', { name: 'Unsure', exact: true })).toBeVisible();
   await expect(certainty.getByRole('radio', { name: 'Unsure', exact: true })).toBeChecked();
 });
+
+test('lookup retains partial names, certainty, contexts and matching notes in compact rows', async ({
+  page,
+}) => {
+  const data = fixtures(1);
+  const household = data.households[0].household;
+  household.people = [
+    { id: 'surname-only', role: 'adult', lastName: { value: 'Zeller', certainty: 'uncertain' } },
+    {
+      id: 'long-name',
+      role: 'adult',
+      firstName: { value: 'Alexandria-Christiane', certainty: 'approximate' },
+      lastName: { value: 'von Schwarzenberg' },
+    },
+    { id: 'unknown-name', role: 'adult' },
+    { id: 'child', role: 'child', firstName: { value: 'Robin' } },
+  ];
+  household.contextIds = ['school', 'garden'];
+  household.notes = 'Teaches weaving at the community workshop.';
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'name-cases.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(data)),
+  });
+  await page.getByRole('button', { name: 'Replace & use this dataset' }).click();
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.setViewportSize({ width: 320, height: 844 });
+  const row = page.locator('[data-household="synthetic-0"]');
+  for (const text of [
+    'Zeller ?',
+    'Alexandria-Christiane ≈',
+    'von Schwarzenberg',
+    'Unknown name',
+    'Robin',
+    'School',
+    'Garden club',
+  ]) {
+    await expect(row.getByText(text, { exact: true })).toBeVisible();
+  }
+  await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 320);
+  await page.getByRole('searchbox').fill('weaving');
+  await expect(row.locator('.excerpt mark')).toHaveText('weaving');
+  await page.getByRole('searchbox').fill('zeller');
+  await expect(row.locator('.names mark')).toHaveText('Zeller');
+  await row.click();
+  await expect(page.getByRole('heading', { name: 'The names, together.' })).toBeVisible();
+  await expect(page.locator('main .names')).toContainText('Zeller ?');
+  await expect(
+    page.getByText('Teaches weaving at the community workshop.', { exact: true }),
+  ).toBeVisible();
+});

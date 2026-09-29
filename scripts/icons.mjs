@@ -8,11 +8,11 @@ try {
   const page = await browser.newPage();
   for (const [size, name, background, inset] of [
     [256, 'brand-mark.png', 'transparent', 0],
-    [64, 'favicon.png', '#f2ff00', 0],
-    [192, 'icon-192.png', '#f2ff00', 0],
-    [512, 'icon-512.png', '#f2ff00', 0],
-    [512, 'icon-maskable-512.png', '#f2ff00', 14],
-    [180, 'apple-touch-icon.png', '#f2ff00', 0],
+    [64, 'favicon.png', '#ff624f', 0],
+    [192, 'icon-192.png', '#ff624f', 0],
+    [512, 'icon-512.png', '#ff624f', 0],
+    [512, 'icon-maskable-512.png', '#ff624f', 14],
+    [180, 'apple-touch-icon.png', '#ff624f', 0],
   ]) {
     await page.setViewportSize({ width: size, height: size });
     await page.setContent(`<style>

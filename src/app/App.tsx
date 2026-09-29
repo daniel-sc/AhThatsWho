@@ -308,16 +308,30 @@ export default function App() {
           <img class="brand-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
           <span>AhThatsWho</span>
         </button>
-        <div class="header-right">
-          <span class="backup-label">
-            {online() ? `Backup: ${cloudStatus().toLowerCase()}` : 'Offline · saved locally'}
-          </span>
-          <button class="icon-button" aria-label="Settings" onClick={() => navigate('settings')}>
-            <Icon name="settings" />
-          </button>
-        </div>
+        <button class="icon-button" aria-label="Settings" onClick={() => navigate('settings')}>
+          <Icon name="settings" />
+        </button>
+        <Show when={ready() && ui().screen === 'home'}>
+          <label class="search">
+            <Icon name="search" />
+            <input
+              type="search"
+              aria-label="Search names and details"
+              placeholder="Search names and details"
+              value={ui().query}
+              onFocus={(e) => scrollSearchAfterKeyboard(e.currentTarget)}
+              onInput={(e) => {
+                setUI({ ...ui(), query: e.currentTarget.value, homeAnchor: undefined });
+                persist();
+              }}
+            />
+          </label>
+        </Show>
+        <span class="backup-label">
+          {online() ? `Backup: ${cloudStatus().toLowerCase()}` : 'Offline · saved locally'}
+        </span>
       </header>
-      <main id="main">
+      <main id="main" data-screen={ui().screen}>
         <Show when={error()}>
           <div id="app-error" class="notice error" role="alert" tabindex="-1">
             {error()}
@@ -346,29 +360,8 @@ export default function App() {
           <Suspense fallback={<p>Opening…</p>}>
             <Show when={ui().screen === 'home'}>
               <section>
-                <div class="section-heading">
-                  <div>
-                    <h1>Your people.</h1>
-                  </div>
-                  <button class="add-button" onClick={newHousehold} aria-label="Add household">
-                    +
-                  </button>
-                </div>
+                <h1 class="sr-only">Your people.</h1>
                 <div class="search-results">
-                  <label class="search">
-                    <Icon name="search" />
-                    <input
-                      type="search"
-                      aria-label="Search names and details"
-                      placeholder="A name, a place, a small detail…"
-                      value={ui().query}
-                      onFocus={(e) => scrollSearchAfterKeyboard(e.currentTarget)}
-                      onInput={(e) => {
-                        setUI({ ...ui(), query: e.currentTarget.value, homeAnchor: undefined });
-                        persist();
-                      }}
-                    />
-                  </label>
                   <div class="filters">
                     <button
                       classList={{ selected: !ui().context }}
@@ -433,14 +426,19 @@ export default function App() {
                       </button>
                     </p>
                   </Show>
-                  <div class="list-heading" role="status" aria-live="polite">
-                    <span>
-                      {results().rows.length}{' '}
-                      {results().rows.length === 1 ? 'HOUSEHOLD' : 'HOUSEHOLDS'}
-                    </span>
-                    <Show when={results().rows.length}>
-                      <span>Last edited</span>
-                    </Show>
+                  <div class="lookup-toolbar">
+                    <div class="list-heading" role="status" aria-live="polite">
+                      <span>
+                        {results().rows.length}{' '}
+                        {results().rows.length === 1 ? 'household' : 'households'}
+                      </span>
+                      <Show when={results().rows.length}>
+                        <span>Last edited</span>
+                      </Show>
+                    </div>
+                    <button class="add-button" onClick={newHousehold} aria-label="Add household">
+                      +
+                    </button>
                   </div>
                   <HouseholdList
                     rows={results().rows}
@@ -497,7 +495,7 @@ export default function App() {
                 </button>
                 <div class="section-heading">
                   <div>
-                    <p class="eyebrow">HOUSEHOLD</p>
+                    <p class="eyebrow">Household</p>
                     <h1>The names, together.</h1>
                   </div>
                   <button onClick={beginEdit}>Edit</button>
@@ -632,7 +630,6 @@ export default function App() {
             </Show>
             <Show when={ui().screen === 'inbox'}>
               <section>
-                <p class="eyebrow">CAPTURE NOW, REVIEW WHEN READY</p>
                 <h1>Your inbox</h1>
                 <div class="filters">
                   <button
@@ -662,7 +659,7 @@ export default function App() {
                   {(c) => (
                     <button class="inbox-row" onClick={() => navigate('review', { capture: c.id })}>
                       <span class="eyebrow">
-                        {c.kind === 'audio' ? 'VOICE NOTE' : 'TEXT NOTE'} ·{' '}
+                        {c.kind === 'audio' ? 'Voice note' : 'Text note'} ·{' '}
                         {new Date(c.createdAt).toLocaleDateString()}
                       </span>
                       <strong>

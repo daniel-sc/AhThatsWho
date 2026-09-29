@@ -1,7 +1,7 @@
 import { createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { db, getMeta, setMeta, saveCapture } from '../data/db';
 import { now, uuid, type Capture } from '../domain/types';
-import { getKey } from '../providers/openai';
+import { getAIMode, getKey } from '../providers/openai';
 import { startRecording } from '../capture/recorder';
 export function CapturePanel(props: {
   setupAI: () => void;
@@ -126,9 +126,12 @@ export function CapturePanel(props: {
     <section class="capture-panel">
       <h1>A name. A small detail.</h1>
       <p class="muted">No need to choose a household. Review before anything changes.</p>
-      <Show when={!getKey()}>
+      <Show when={getAIMode() === 'personal' && !getKey()}>
         <div class="notice">
-          <p>AI needs your OpenAI API key. You can save a note now and process it later.</p>
+          <p>
+            Personal AI needs your OpenAI API key. Add one or switch to Sponsored in Settings. You
+            can also save your note for later.
+          </p>
           <button
             disabled={recording() || busy()}
             onClick={() => void writes.then(props.setupAI).catch(props.error)}
@@ -153,7 +156,10 @@ export function CapturePanel(props: {
       </button>
       <p class="fine capture-help">
         Stopping sends audio to OpenAI for transcription and a suggestion. Nothing changes until you
-        approve it.
+        approve it.{' '}
+        {getAIMode() === 'sponsored'
+          ? 'Sponsored processing passes through our server.'
+          : 'Your personal API key pays for processing.'}
       </p>
       <Show when={saved()}>
         <p role="status">
@@ -198,6 +204,13 @@ export function CapturePanel(props: {
         details to OpenAI for review. Audio stays local until applied or discarded and is not
         included in backups.
       </p>
+      <button
+        class="quiet"
+        disabled={recording() || busy()}
+        onClick={() => void writes.then(props.setupAI).catch(props.error)}
+      >
+        AI settings
+      </button>
       <button class="quiet" disabled={recording()} onClick={props.close}>
         Back · keep draft
       </button>

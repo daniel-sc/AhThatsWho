@@ -7,7 +7,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
 }) => {
   let transcriptions = 0;
   let proposals = 0;
-  await page.route('https://api.openai.com/v1/audio/transcriptions', async (route) => {
+  await page.route('**/api/ai/transcribe', async (route) => {
     transcriptions++;
     expect(route.request().headers()['content-type']).toContain('multipart/form-data');
     const body = route.request().postDataBuffer()!.toString('latin1');
@@ -17,9 +17,9 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
     expect(body).toMatch(/audio\/(webm|mp4)/);
     await route.fulfill({ json: { text: 'Met Beatrice at the synthetic pottery studio.' } });
   });
-  await page.route('https://api.openai.com/v1/responses', async (route) => {
+  await page.route('**/api/ai/generate', async (route) => {
     proposals++;
-    const input = JSON.parse(route.request().postDataJSON().input);
+    const input = route.request().postDataJSON();
     expect(input.expectedLanguages).toEqual(['de', 'en']);
     expect(input.source).toContain('Also likes jazz.');
     expect(input.source).toContain('Met Beatrice');
@@ -59,8 +59,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   await page.getByLabel('English', { exact: true }).check();
   await expect(page.getByLabel('English', { exact: true })).toBeEnabled();
   await page.getByLabel('Resume where I left off').uncheck();
-  await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
-  await page.getByRole('button', { name: 'Save key', exact: true }).click();
+  await expect(page.getByLabel('AI payment')).toHaveValue('sponsored');
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await page.getByLabel('Capture text', { exact: true }).fill('Also likes jazz.');
   await page.getByRole('button', { name: 'Record a voice note' }).click();
@@ -76,8 +75,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('German', { exact: true })).toBeChecked();
   await expect(page.getByLabel('English', { exact: true })).toBeChecked();
-  await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
-  await page.getByRole('button', { name: 'Save key', exact: true }).click();
+  await expect(page.getByLabel('AI payment')).toHaveValue('sponsored');
   await page.getByRole('button', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Play saved recording' }).click();
@@ -110,7 +108,7 @@ test('backgrounding a recording keeps it in Inbox without starting processing', 
   page,
 }) => {
   let requests = 0;
-  await page.route('https://api.openai.com/**', async (route) => {
+  await page.route('**/api/ai/**', async (route) => {
     requests++;
     await route.abort();
   });

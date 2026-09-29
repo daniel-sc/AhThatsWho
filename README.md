@@ -29,9 +29,9 @@ A fresh notebook opens with a story and a clearly labeled fictional example. Cho
 
 Manual editing, lookup, history, trash and inbox work without accounts or keys. Save is explicit; editor/capture drafts stay local. Search uses multiword AND, substring/typo matching and last-edit order. A nonempty query falls back globally only when the selected context has no matches.
 
-Capture text or audio now, process/review later. Saved audio is local only, chunked while recording and removed after Apply/Discard. Processing sends capture text and candidate household data to OpenAI only on explicit action. The model never writes the database. Review Current/Proposed, including changed/removed facts. A changed target invalidates application; a receipt makes duplicate Apply harmless.
+Capture text or audio now, process/review later. Saved audio is local only, chunked while recording and removed after Apply/Discard. Processing sends capture text and candidate household data to OpenAI only on explicit action (through our server for sponsored usage). The model never writes the database. Review Current/Proposed, including changed/removed facts. A changed target invalidates application; a receipt makes duplicate Apply harmless.
 
-OpenAI key: Settings, optionally remember on this device. Default is memory only. Check model access explicitly, then run the three-case synthetic parser evaluation. The parser candidate is `gpt-6-luna` with explicit `low` reasoning; transcription uses `gpt-transcribe`. Real account validation is pending. No routine test makes model calls.
+AI is sponsored by default, with no login or personal key. Settings → AI payment offers a personal OpenAI key instead (session-only by default, optionally remembered on this device). Modes never switch automatically. Failed requests leave the source saved for retry or manual editing. Check model access explicitly, then run the three-case synthetic parser evaluation. Configure the sponsorship secret and enforced OpenAI spending limit as described in [deployment](docs/deployment.md); see [decision notes](docs/sponsored-ai.md). The parser candidate is `gpt-6-luna` with explicit `low` reasoning; transcription uses `gpt-transcribe`. Real account validation is pending. No routine test makes model calls.
 
 Settings → Recognition languages accepts multiple selections (for example, German and English). German is the default; clear all selections for automatic detection. Selected languages guide both transcription and LLM conversion. Generated notes follow the source language. Transcription prioritizes names from the selected household and context, using deduplicated, bounded keyword hints.
 
@@ -43,10 +43,11 @@ Configure CloudKit only after selecting the permanent HTTPS origin. [Setup and d
 - `data`: six Dexie stores and transactional mutations.
 - `capture`: proposals, application receipts, recorder, provider attempt guards.
 - `backup`: one portable allowlist and one upload coordinator.
-- `providers`: direct OpenAI fetch; CloudKit private Asset snapshots.
+- `worker`: public sponsored transcription/proposal endpoints; key stays server-side.
+- `providers`: sponsored API or direct BYOK OpenAI fetch; CloudKit private Asset snapshots.
 - `ui`, `app`: Solid screens, navigation, update prompt, backup scheduling.
 
-No server API, app authentication, telemetry, contact/photo model, vector search, generic repository or provider plugin system.
+No app authentication, telemetry, contact/photo model, vector search, generic repository or provider plugin system. Sponsored requests pass through our Worker to OpenAI; notebook storage remains local.
 
 ## Data and recovery
 

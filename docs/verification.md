@@ -6,6 +6,15 @@ Recorded 27 September 2026. Build `0.1.0-beta.1`; format 1. The recorded test bu
 
 ## Completed evidence
 
+### Sponsored AI addition — 29 September 2026
+
+- `npm run check`, `npm test` (**60 tests**), and `npm run build` passed. Worker tests mock OpenAI and cover fixed request options, bounded bodies, transcription forwarding, missing credentials and sanitized upstream failures.
+- Production-build browser suite: 25/27 passed initially; two test setup/selector failures were corrected, then both affected files (5 journeys) passed. All 27 journeys are covered by the successful runs. Sponsored voice/transcript retry and explicit BYOK switching are included; no live inference occurred.
+- Wrangler deployment dry run passed (Worker bundle plus static assets). Local workerd smoke passed for static assets, API routing including navigation requests, no-store headers, unknown routes and missing-secret 503 responses.
+- No OpenAI key exists in the local environment or `.dev.vars`. No live deployment or OpenAI platform budget change was made. Set the runtime secret and enforced project spending limit using [deployment instructions](deployment.md#sponsored-ai) before activation. Actual installed iOS/Android acceptance remains pending.
+
+### Earlier baseline
+
 - `mise run check`: TypeScript, **28 unit/integration tests**, production build passed.
 - `mise run e2e`: **13 production-build browser journeys passed**. Includes CRUD/history/trash, context fallback, drafts/reload, offline shell, import cancellation/replacement/safety recovery, malformed/newer rejection, ambiguity, stale proposals and drafts, microphone denial, large-list scroll restoration, and a real waiting service-worker update blocked while editing.
 - Synthetic Chromium MediaRecorder journey passed: real browser audio chunks stored before any upload; mocked transcription succeeded; mocked parsing rate-limit retained transcript; retry did not retranscribe; Apply removed audio. This uses fake microphone input and mocked OpenAI, **not an iPhone or real transcription**.
@@ -30,14 +39,14 @@ These are engineering observations, not installed cold-launch timings, and diffe
 
 ## Concrete remaining release gates
 
-| Gate                   | Observed blocker / required evidence                                                                                                                                                                                                                                                    |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source repository      | Local Git repository initialized; private GitHub repository: [daniel-sc/AhThatsWho](https://github.com/daniel-sc/AhThatsWho). Rebuild from the recorded release commit before deployment.                                                                                                   |
-| Permanent HTTPS origin | Resolved: deployed at https://ahthatswho.aged-bread-195a.workers.dev using authenticated Wrangler. Use this origin for CloudKit configuration and iPhone installation.                                                                                                                     |
-| Real OpenAI            | No key available. Enter it through Settings, explicitly check model access, run the 3-case paid synthetic evaluation, then transcribe an actual iPhone recording. Selecting candidate `gpt-6-luna` with `low` reasoning is not a completed quality evaluation.                          |
-| CloudKit               | No container/website token/production schema/origin configuration available. Complete setup, real sign-in, Asset save/list/load/digest verification, retention and clean-install restore. Provider code follows Apple's documented API but is not validated against the user's account. |
-| iPhone                 | Physical device/iOS version, installed launch, permissions, lifecycle, Files, authentication-return behavior, production CSP and update checks all require user participation.                                                                                                          |
-| Private migration      | Proposals are prepared but require user review/application and a successful real cloud backup plus clean-install recovery.                                                                                                                                                              |
+| Gate                   | Observed blocker / required evidence                                                                                                                                                                                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Source repository      | Local Git repository initialized; private GitHub repository: [daniel-sc/AhThatsWho](https://github.com/daniel-sc/AhThatsWho). Rebuild from the recorded release commit before deployment.                                                                                                                                                  |
+| Permanent HTTPS origin | Resolved: deployed at https://ahthatswho.aged-bread-195a.workers.dev using authenticated Wrangler. Use this origin for CloudKit configuration and iPhone installation.                                                                                                                                                                     |
+| Real OpenAI            | No sponsorship key available locally. Configure the Worker secret and enforced OpenAI limit (or choose a personal key in Settings), check model access, run the 3-case paid synthetic evaluation, then transcribe an actual iPhone recording. Selecting candidate `gpt-6-luna` with `low` reasoning is not a completed quality evaluation. |
+| CloudKit               | No container/website token/production schema/origin configuration available. Complete setup, real sign-in, Asset save/list/load/digest verification, retention and clean-install restore. Provider code follows Apple's documented API but is not validated against the user's account.                                                    |
+| iPhone                 | Physical device/iOS version, installed launch, permissions, lifecycle, Files, authentication-return behavior, production CSP and update checks all require user participation.                                                                                                                                                             |
+| Private migration      | Proposals are prepared but require user review/application and a successful real cloud backup plus clean-install recovery.                                                                                                                                                                                                                 |
 
 ## Actual iPhone acceptance checklist — all pending
 
@@ -59,7 +68,7 @@ Record phone model, iOS version, origin, build SHA/time, household count, networ
 
 ## Pragmatic defaults / limitations
 
-English UI; multilingual data. One device. No server/proxy/auth service, sync, analytics, app-level encryption, permanent audio archive or generalized migration/bulk-edit framework. Private note staging is line-by-line only.
+English UI; multilingual data. One device. Public sponsored AI uses a small Cloudflare Worker; BYOK is direct to OpenAI. No auth service, sync, analytics, app-level encryption, permanent audio archive or generalized migration/bulk-edit framework. Private note staging is line-by-line only.
 
 Five-second active-app backup debounce with bounded retry backoff to five minutes; one upload per coordinator. New-install authorization is explicit. Retention errors do not invalidate a verified new backup; retry on later backup/action. Audio timeslice is one second, chosen MIME by browser capability, provider upload limit 25 MB, portable JSON limit 50 MB. Raw recordings are not portable. Force-kill before the browser emits audio cannot be recovered by this app.
 

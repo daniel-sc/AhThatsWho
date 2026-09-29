@@ -70,8 +70,9 @@ export function Welcome(props: {
         <p class="welcome-ai-detail">
           <strong>Your notebook is stored on this device.</strong>
           <br />
-          Optional AI requires your OpenAI API key and sends recordings, notes, and relevant
-          notebook details to OpenAI for processing. You review suggestions before saving.
+          Optional AI is sponsored: no login or API key needed. Recordings, notes, and relevant
+          notebook details pass through our server to OpenAI for processing. You review suggestions
+          before saving. You can also use your own API key in Settings.
         </p>
       </div>
       <div class="welcome-extras">

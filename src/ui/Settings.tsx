@@ -1,5 +1,6 @@
 import { InstallHelp, type createInstallation } from './InstallHelp';
 import { recognitionLanguages, defaultRecognitionLanguages } from '../domain/languages';
+import { getAIMode, setAIMode, type AIMode } from '../providers/openai';
 import type { Preferences } from '../domain/types';
 import { createSignal, onMount, Show, For } from 'solid-js';
 import { db, getMeta, setMeta, backupState, saveContext, deleteContext, dirty } from '../data/db';
@@ -25,6 +26,7 @@ export function Settings(props: {
   trash: () => void;
   importing: (v: boolean) => void;
 }) {
+  const [mode, setMode] = createSignal<AIMode>(getAIMode());
   const [key, setKeyInput] = createSignal('');
   const [remember, setRemember] = createSignal(false);
   const [keyStatus, setKeyStatus] = createSignal('');
@@ -138,7 +140,30 @@ export function Settings(props: {
         <div class="settings-block">
           <h2>OpenAI</h2>
           <p class="muted">
-            For transcription and suggested edits. Manual use works without a key.
+            Sponsored transcription and suggested edits need no account or API key. Manual use is
+            always available.
+          </p>
+          <label>
+            AI payment
+            <select
+              value={mode()}
+              disabled={busy()}
+              onChange={(e) => {
+                const next = e.currentTarget.value as AIMode;
+                setAIMode(next);
+                setMode(next);
+                setInfo('');
+              }}
+            >
+              <option value="sponsored">Sponsored — no key needed</option>
+              <option value="personal">Personal API key — you pay</option>
+            </select>
+          </label>
+          <p class="fine">
+            {mode() === 'sponsored'
+              ? 'AI usage is paid for by the app owner, subject to a shared spending limit. Notes, recordings and relevant notebook details pass through our server to OpenAI for processing; our server does not save them.'
+              : 'AI requests go directly to OpenAI and are billed to your account. Your key stays on this device.'}{' '}
+            If a request fails, your source stays saved. Payment modes never switch automatically.
           </p>
           <fieldset disabled={busy()}>
             <legend>Recognition languages</legend>
@@ -169,53 +194,59 @@ export function Settings(props: {
               </For>
             </div>
           </fieldset>
-          <p class="fine">{keyStatus()}</p>
-          <label>
-            API key
-            <input
-              type="password"
-              autocomplete="off"
-              value={key()}
-              onInput={(e) => setKeyInput(e.currentTarget.value)}
-              placeholder="sk-…"
-            />
-          </label>
-          <label class="check">
-            <input
-              type="checkbox"
-              checked={remember()}
-              onChange={(e) => setRemember(e.currentTarget.checked)}
-            />
-            Remember on this device
-          </label>
-          <p class="fine">
-            Otherwise kept in memory until the app closes. Keys never enter exports or backups.
-          </p>
+          <Show when={mode() === 'personal'}>
+            <p class="fine">{keyStatus()}</p>
+            <label>
+              API key
+              <input
+                type="password"
+                autocomplete="off"
+                value={key()}
+                onInput={(e) => setKeyInput(e.currentTarget.value)}
+                placeholder="sk-…"
+              />
+            </label>
+            <label class="check">
+              <input
+                type="checkbox"
+                checked={remember()}
+                onChange={(e) => setRemember(e.currentTarget.checked)}
+              />
+              Remember on this device
+            </label>
+            <p class="fine">
+              Otherwise kept in memory until the app closes. Keys never enter exports or backups.
+            </p>
+            <div class="actions">
+              <button
+                disabled={busy() || !key().trim()}
+                onClick={() =>
+                  void act(async () => {
+                    const api = await import('../providers/openai');
+                    api.setKey(key(), remember());
+                    setKeyInput('');
+                    setKeyStatus(
+                      api.getKey() ? 'Key available on this device' : 'No key configured',
+                    );
+                  })
+                }
+              >
+                Save key
+              </button>
+              <button
+                onClick={() =>
+                  void act(async () => {
+                    const api = await import('../providers/openai');
+                    api.forgetKey();
+                    setKeyStatus('No key configured');
+                  })
+                }
+              >
+                Forget key
+              </button>
+            </div>
+          </Show>
           <div class="actions">
-            <button
-              disabled={busy() || !key().trim()}
-              onClick={() =>
-                void act(async () => {
-                  const api = await import('../providers/openai');
-                  api.setKey(key(), remember());
-                  setKeyInput('');
-                  setKeyStatus(api.getKey() ? 'Key available on this device' : 'No key configured');
-                })
-              }
-            >
-              Save key
-            </button>
-            <button
-              onClick={() =>
-                void act(async () => {
-                  const api = await import('../providers/openai');
-                  api.forgetKey();
-                  setKeyStatus('No key configured');
-                })
-              }
-            >
-              Forget key
-            </button>
             <button
               disabled={busy()}
               onClick={() =>
@@ -231,8 +262,9 @@ export function Settings(props: {
           <details>
             <summary>Verify the parser with synthetic examples</summary>
             <p class="fine">
-              Runs three paid requests: a German spelling correction, a birthday without a year, and
-              an ambiguous name. No private notebook data is sent by this check.
+              Runs three requests using the selected payment mode: a German spelling correction, a
+              birthday without a year, and an ambiguous name. No private notebook data is sent by
+              this check.
             </p>
             <button
               disabled={busy()}

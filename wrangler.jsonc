@@ -1,12 +1,15 @@
 {
   "name": "ahthatswho",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-09-27",
   "assets": {
+    "binding": "ASSETS",
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "run_worker_first": ["/api/*"],
+    "not_found_handling": "single-page-application",
   },
   "observability": {
-    "enabled": false
+    "enabled": false,
   },
-  "preview_urls": true
+  "preview_urls": true,
 }

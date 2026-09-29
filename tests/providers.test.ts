@@ -5,12 +5,16 @@ import {
   transcriptionKeywords,
   setKey,
   forgetKey,
+  getAIMode,
+  setAIMode,
+  checkConnection,
 } from '../src/providers/openai';
 import { fixtures } from '../src/domain/fixtures';
 import { uuid, now, type Capture } from '../src/domain/types';
 const storage = new Map<string, string>();
 const fetchMock = vi.fn();
 beforeEach(() => {
+  storage.clear();
   vi.stubGlobal('localStorage', {
     getItem: (k: string) => storage.get(k) || null,
     setItem: (k: string, v: string) => storage.set(k, v),
@@ -19,6 +23,7 @@ beforeEach(() => {
   vi.stubGlobal('navigator', { onLine: true });
   vi.stubGlobal('fetch', fetchMock);
   setKey('synthetic-test-key', false);
+  setAIMode('personal');
   fetchMock.mockReset();
 });
 afterEach(() => {
@@ -145,4 +150,62 @@ it('keeps context names ahead of unrelated names when keyword capacity is exhaus
   const keywords = transcriptionKeywords(b.households, b.contexts, { contextId: 'work' });
   expect(keywords.slice(0, 3)).toEqual(['Amelie Example 100', 'Robin 100', 'Work']);
   expect(keywords).not.toContain('Robin 99');
+});
+
+it('defaults to sponsorship even with a saved personal key and never sends that key to the Worker', async () => {
+  storage.delete('ahthatswho.ai-mode');
+  setKey('synthetic-personal-secret', true);
+  expect(getAIMode()).toBe('sponsored');
+  const b = fixtures(1);
+  fetchMock.mockResolvedValue(
+    reply({ action: 'ambiguous', candidateIds: [], contextSuggestions: [], reason: 'Unclear' }),
+  );
+  await generate(capture(), b.households, b.contexts);
+  const [url, init] = fetchMock.mock.calls[0];
+  expect(url).toBe('/api/ai/generate');
+  expect(init.headers.Authorization).toBeUndefined();
+  expect(JSON.parse(init.body)).toMatchObject({
+    source: capture().text,
+    expectedLanguages: ['de'],
+  });
+  expect(JSON.parse(init.body).model).toBeUndefined();
+});
+
+it.each([429, 503, 502])(
+  'shows sponsored HTTP %s failures without falling back to a saved key',
+  async (status) => {
+    setAIMode('sponsored');
+    fetchMock.mockResolvedValue(new Response('{}', { status }));
+    await expect(generate(capture(), [], [])).rejects.toThrow(/source is saved/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/ai/generate');
+    expect(getAIMode()).toBe('sponsored');
+  },
+);
+
+it('keeps personal mode selected when a session-only key is gone', async () => {
+  forgetKey();
+  await expect(generate(capture(), [], [])).rejects.toThrow('Add your OpenAI key');
+  expect(getAIMode()).toBe('personal');
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it('transcribes and checks sponsored access without a personal key', async () => {
+  forgetKey();
+  setAIMode('sponsored');
+  fetchMock.mockResolvedValueOnce(Response.json({ text: 'Avery from pottery' }));
+  expect(await transcribe(new Blob(['audio']), 'audio/mp4', [], [])).toBe('Avery from pottery');
+  expect(fetchMock.mock.calls[0][0]).toBe('/api/ai/transcribe');
+  expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  fetchMock.mockResolvedValueOnce(Response.json({ available: true }));
+  expect(await checkConnection()).toContain('Sponsored AI has access');
+  expect(fetchMock.mock.calls[1][0]).toBe('/api/ai/check');
+});
+
+it('reports network and unreadable-response failures with recovery guidance', async () => {
+  setAIMode('sponsored');
+  fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  await expect(generate(capture(), [], [])).rejects.toThrow('Your source is saved');
+  fetchMock.mockResolvedValueOnce(new Response('<html>Proxy error</html>'));
+  await expect(generate(capture(), [], [])).rejects.toThrow('unreadable response');
 });

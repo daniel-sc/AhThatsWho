@@ -4,7 +4,7 @@
 
 A custom domain is optional; the default Cloudflare `workers.dev` HTTPS address is sufficient. Keep the chosen address stable before private import: IndexedDB, PWA installation and remembered keys are origin-specific, and CloudKit must allow that origin. Moving origins requires export/restore. The workspace is a local Git repository. In the managed coding environment, Git commands require execution outside the sandbox: the sandbox exposes a read-only `.git` placeholder that hides the actual repository. Build from a recorded commit with `BUILD_SHA=$(git rev-parse --short HEAD) mise exec -- npm run build`. The source repository is [daniel-sc/AhThatsWho](https://github.com/daniel-sc/AhThatsWho), created as private. Never commit the combined brief or private migration files.
 
-`wrangler.jsonc` serves `dist` as Workers Static Assets with SPA fallback. No application Worker or server proxy is required. The Worker is `ahthatswho`, serving https://ahthatswho.aged-bread-195a.workers.dev. No custom domain is required.
+`wrangler.jsonc` serves `dist` as Workers Static Assets with SPA fallback and routes `/api/*` to `src/worker.ts` before asset handling. The Worker provides public sponsored AI; all other app data stays local. The Worker is `ahthatswho`, serving https://ahthatswho.aged-bread-195a.workers.dev. No custom domain is required.
 
 ```sh
 mise exec -- wrangler login
@@ -17,11 +17,22 @@ mise exec -- wrangler deploy
 
 A token can alternatively be supplied as `CLOUDFLARE_API_TOKEN` through the environment's secret mechanism. Do not put it in a `VITE_` variable, repository, chat or build assets. In restricted workspaces `WRANGLER_LOG_PATH=/tmp/ahthatswho-wrangler` keeps CLI logs writable. Wrangler OAuth access was verified on 27 September 2026 and deployment succeeded. Historical deployment before the rename: build `a17b378`; Cloudflare version `1b0e9d01-31af-441b-8cd5-a846647ab493`.
 
+## Sponsored AI
+
+1. Create a dedicated OpenAI project and configure a **$10 monthly spend limit with Enforce a hard limit enabled**. An alert alone does not stop traffic. Enforcement can slightly overshoot; there is intentionally no app spending ledger, login, bot challenge or per-user quota. See [OpenAI spend controls](https://developers.openai.com/api/docs/guides/spend-limits).
+2. **Deploy the checked app/Worker together first.** Cloudflare does not allow variables/secrets on a static-assets-only Worker; the first deployment with `main: src/worker.ts` enables them. Missing secret returns a visible unavailable error; the public notebook and personal-key option still work.
+3. Give that project a key with access to Responses, transcription and model retrieval. Add `OPENAI_API_KEY` as a **Secret** under the Worker's Settings → Variables and Secrets, or use `mise exec -- wrangler secret put OPENAI_API_KEY` and paste it only into the CLI prompt. Never put it in a `VITE_` variable, source, chat or built assets. Saving/deploying the secret activates sponsorship; configure the budget first. Runtime secrets persist independently of frontend builds. Preview versions may inherit the same secret: they are public sponsored endpoints too, not isolated test budgets.
+4. In Settings, leave **AI payment → Sponsored**, check connection/models, then test a synthetic capture. Connection checks verify model access, not inference credit. Errors retain captures/audio and never fall back to a personal key. Switch to **Personal API key** explicitly to charge the user's account.
+
+Local development: build once with `npm run build`, put a development project's key in ignored `.dev.vars` as `OPENAI_API_KEY=...`, then run `mise exec -- wrangler dev --port 8787`. Use that URL for the built app, or run Vite dev in another terminal; `/api` is proxied to port 8787. Never use a production key for routine tests. Static-only previews cannot provide sponsored AI without the Worker; browser tests mock inference.
+
+The Worker accepts only generation, transcription and model checks. It fixes model/prompt/schema/output limits, bounds uploads, returns no-store responses and sanitizes provider failures. It stores/logs no notes, audio or keys. Public clients can still consume the shared budget; the OpenAI enforced limit is the selected control. See [decision notes](sponsored-ai.md).
+
 ## GitHub Actions
 
 Every push and pull request runs mise-pinned installation, TypeScript checks, unit/integration tests, a production build and Chromium browser journeys. Builds include the source commit SHA. Successful runs retain `dist` as a downloadable artifact for 14 days. After checks pass, pushes to `main` or `master` deploy production. Every other branch push uploads a preview version with a stable branch alias, without changing production. Pull requests run checks only; their source-branch push supplies the preview. Tags do not deploy. The deployment log and preview URL appear in the Actions run summary. Manual workflow dispatch can retry deployment after configuration changes.
 
-CI requires repository Actions secret `CLOUDFLARE_API_TOKEN` (account-scoped Workers Scripts: Edit) and variable `CLOUDFLARE_ACCOUNT_ID`. The local Wrangler OAuth session cannot authenticate GitHub runners. Set the secret directly in GitHub; never commit or paste it into chat. Deployment downloads the exact checked build artifact rather than rebuilding. Preview aliases use a hash of the full branch name; preview origins have separate local storage and should use synthetic data. CloudKit production origins are not automatically expanded for previews.
+CI requires repository Actions secret `CLOUDFLARE_API_TOKEN` (account-scoped Workers Scripts: Edit) and variable `CLOUDFLARE_ACCOUNT_ID`. The local Wrangler OAuth session cannot authenticate GitHub runners. Set the secret directly in GitHub; never commit or paste it into chat. Deployment downloads the exact checked frontend build artifact; Wrangler bundles the checked Worker source from the same commit. Preview aliases use a hash of the full branch name; preview origins have separate local storage and should use synthetic data. CloudKit production origins are not automatically expanded for previews.
 
 ## CloudKit production
 
@@ -41,7 +52,7 @@ Saving uses a stable UUID recordName. If a save response is lost, retry first li
 
 CloudKit SDK is loaded from `https://cdn.apple-cloudkit.com/ck/2/cloudkit.js` only when configured, after local bootstrap. Provider code executes in the same origin and can read a remembered BYOK key. Users can keep OpenAI credentials session-only.
 
-The service worker precaches only the shell/static assets. No OpenAI, CloudKit, tokens or private responses are runtime-cached. `sw.js` and HTML use revalidation; hashed assets can be immutable. Inspect response headers on the deployed hostname because the Vite preview server does not emulate Cloudflare `_headers`.
+The service worker precaches only the shell/static assets. No OpenAI, sponsored API, CloudKit, tokens or private responses are runtime-cached. `/api/*` is excluded from navigation fallback; API responses use `Cache-Control: no-store`. `sw.js` and HTML use revalidation; hashed assets can be immutable. Inspect response headers on the deployed hostname because the Vite preview server does not emulate Cloudflare `_headers`.
 
 ## iPhone handover and rollback
 

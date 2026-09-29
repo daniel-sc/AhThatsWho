@@ -42,7 +42,8 @@ test('AI setup preserves the note and capture drafts suppress welcome', async ({
   await page.goto('/');
   await page.getByRole('button', { name: /^Speak or jot a note/ }).click();
   await page.getByLabel('Capture text').fill('Avery from the pottery class');
-  await page.getByRole('button', { name: 'Set up AI', exact: true }).click();
+  await page.getByRole('button', { name: 'AI settings', exact: true }).click();
+  await page.getByLabel('AI payment').selectOption('personal');
   await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
   await page.getByRole('button', { name: 'Save key', exact: true }).click();
   await expect(page.getByText('Key available on this device')).toBeVisible();

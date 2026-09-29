@@ -56,6 +56,7 @@ test('an ambiguous provider reply goes to target review and a stale proposal is 
 }) => {
   await seed(page);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('AI payment').selectOption('personal');
   await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
   await page.getByRole('button', { name: 'Save key', exact: true }).click();
   await page.route('https://api.openai.com/v1/responses', async (route) => {

@@ -34,10 +34,14 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,ttf}'],
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [],
       },
     }),
   ],
+  server: {
+    proxy: { '/api': 'http://127.0.0.1:8787' },
+  },
   define: {
     __BUILD__: JSON.stringify({
       version: '0.1.0-beta.1',

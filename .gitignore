@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env*
+.dev.vars*
 !.env.example
 .wrangler/
 playwright-report/

@@ -79,7 +79,10 @@ test('optional certainty stays editable and existing uncertainty opens on return
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Add household', exact: true }).first().click();
+  await page
+    .getByRole('button', { name: /^(Add household|Add a person)/ })
+    .first()
+    .click();
   await page.getByLabel('First name', { exact: true }).fill('Alex');
   const certainty = page.locator('.certainty-disclosure').first();
   await expect(certainty.getByRole('radio', { name: 'Unsure', exact: true })).not.toBeVisible();

@@ -1,0 +1,230 @@
+.welcome {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 16px 0 28px;
+}
+.welcome h1 {
+  font-family: var(--display);
+  font-size: 36px;
+  line-height: 1.05;
+  letter-spacing: -1.5px;
+  margin: 15px 0 16px;
+  font-weight: 750;
+}
+.welcome h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+.welcome-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.3px;
+  font-weight: 750;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.welcome-intro {
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0 0 19px;
+}
+.welcome-query {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  background: white;
+  border: 1px solid var(--accent);
+  box-shadow: 3px 3px 0 var(--accent);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  font-size: 16px;
+  border-radius: 5px;
+}
+.welcome-query .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+.welcome-query small {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.welcome-example {
+  border: 1px solid #d7d4cd;
+  border-left: 3px solid var(--accent);
+  padding: 17px 18px;
+  background: #f5f3ed;
+  border-radius: 0 7px 7px 0;
+}
+.welcome-example .welcome-eyebrow {
+  font-size: 10px;
+  letter-spacing: 1px;
+  margin-bottom: 15px;
+}
+.welcome-people {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  align-items: baseline;
+  font-family: var(--display);
+  font-size: 23px;
+  line-height: 1.22;
+  color: var(--accent);
+}
+.welcome-people strong {
+  font-weight: 750;
+}
+.welcome-people strong span {
+  color: var(--ink);
+  font-size: 17px;
+  font-family: Atkinson, sans-serif;
+  font-weight: 500;
+}
+.welcome-people b {
+  font-weight: 400;
+  font-size: 17px;
+  color: var(--muted);
+}
+.welcome-context {
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.welcome-context span {
+  color: var(--muted);
+  font-weight: 400;
+}
+.welcome-example p {
+  font-size: 14px;
+  margin: 9px 0 0;
+}
+.welcome-example mark {
+  background: #ffcc5780;
+  padding: 1px 2px;
+}
+.welcome-answer {
+  font-family: var(--display);
+  font-size: 25px;
+  margin: 10px 0;
+  text-align: right;
+}
+.welcome-answer strong {
+  color: var(--accent);
+}
+.welcome-actions {
+  margin: 22px 0 20px;
+}
+.welcome-actions > .welcome-eyebrow {
+  margin-bottom: 11px;
+}
+.welcome-choice {
+  width: 100%;
+  min-height: 83px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  border-radius: 7px;
+  padding: 16px 18px;
+  gap: 12px;
+}
+.welcome-choice + .welcome-choice {
+  margin-top: 10px;
+}
+.welcome-choice strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.3;
+}
+.welcome-choice small {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-top: 4px;
+  color: inherit;
+}
+.welcome-choice > span:last-child {
+  font-size: 24px;
+}
+.welcome-manual {
+  background: var(--accent);
+  color: white;
+}
+.welcome-manual:hover {
+  background: var(--accent-hover);
+}
+.welcome-ai {
+  background: var(--marker);
+  color: var(--ink);
+}
+.welcome-ai:hover {
+  background: #f45342;
+}
+.welcome-ai-detail {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 11px 0 0;
+}
+.welcome-extras {
+  border-top: 1px solid #dedbd4;
+  padding-top: 8px;
+}
+.welcome-extras > button,
+.install-help summary {
+  font-size: 14px;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  padding: 11px 0;
+  min-height: 44px;
+  font-weight: 500;
+  display: flex;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.install-help {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+}
+.install-help p {
+  font-size: 14px;
+  color: var(--muted);
+}
+.install-help summary {
+  list-style: none;
+}
+.install-help summary::-webkit-details-marker {
+  display: none;
+}
+.app-header.welcoming {
+  padding-bottom: 17px;
+}
+@media (min-width: 700px) {
+  .welcome {
+    padding-top: 35px;
+  }
+  .welcome h1 {
+    font-size: 49px;
+  }
+  .welcome-story {
+    margin-top: 28px;
+  }
+}
+@media (max-width: 360px) {
+  .welcome h1 {
+    font-size: 33px;
+  }
+  .welcome-people {
+    font-size: 21px;
+  }
+  .welcome-people strong span {
+    font-size: 15px;
+  }
+}

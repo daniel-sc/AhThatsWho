@@ -15,7 +15,10 @@ async function importData(page: Page, count = 12) {
   await page.getByRole('button', { name: 'Home', exact: true }).click();
 }
 async function add(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Add household', exact: true }).first().click();
+  await page
+    .getByRole('button', { name: /^(Add household|Add a person)/ })
+    .first()
+    .click();
   await page.getByLabel('First name', { exact: true }).fill(name);
   await page.getByLabel('Memory cue', { exact: true }).fill('Green bicycle');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -104,7 +107,10 @@ test('import cancel, replacement and local safety recovery', async ({ page }) =>
 });
 test('editor draft survives reload and does not apply until save', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Add household', exact: true }).first().click();
+  await page
+    .getByRole('button', { name: /^(Add household|Add a person)/ })
+    .first()
+    .click();
   await page.getByLabel('First name', { exact: true }).fill('Ariadne');
   await expect(page.getByText('Local draft saved · not applied')).toBeVisible();
   await page.reload();

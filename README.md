@@ -25,6 +25,8 @@ Import synthetic fixtures through Settings. Import previews and replaces the dat
 
 ## Use
 
+A fresh notebook opens with a story and a clearly labeled fictional example. Choose **Add a person** for manual entry or **Speak or jot a note** for capture and optional AI processing. The example is display-only and never enters saved data or backups. Installation help is available on welcome and in Settings. Existing records, drafts, inbox items, and restored notebooks keep the normal lookup experience.
+
 Manual editing, lookup, history, trash and inbox work without accounts or keys. Save is explicit; editor/capture drafts stay local. Search uses multiword AND, substring/typo matching and last-edit order. A nonempty query falls back globally only when the selected context has no matches.
 
 Capture text or audio now, process/review later. Saved audio is local only, chunked while recording and removed after Apply/Discard. Processing sends capture text and candidate household data to OpenAI only on explicit action. The model never writes the database. Review Current/Proposed, including changed/removed facts. A changed target invalidates application; a receipt makes duplicate Apply harmless.

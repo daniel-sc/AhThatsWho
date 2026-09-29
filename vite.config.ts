@@ -6,7 +6,12 @@ export default defineConfig({
     solid(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['favicon.png', 'brand-mark.png', 'apple-touch-icon.png'],
+      includeAssets: [
+        'favicon.png',
+        'brand-mark.png',
+        'apple-touch-icon.png',
+        'apple-touch-icon-v2.png',
+      ],
       manifest: {
         name: 'AhThatsWho',
         short_name: 'AhThatsWho',

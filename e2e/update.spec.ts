@@ -10,7 +10,10 @@ test('a real waiting service worker prompts and cannot reload an editor', async 
       await navigator.serviceWorker.ready;
     });
     await page.reload();
-    await page.getByRole('button', { name: 'Add household', exact: true }).first().click();
+    await page
+      .getByRole('button', { name: /^(Add household|Add a person)/ })
+      .first()
+      .click();
     await page.getByLabel('First name', { exact: true }).fill('Kept draft');
     await expect(page.getByText('Local draft saved · not applied')).toBeVisible();
     await writeFile(path, original + '\n// synthetic update check\n');
@@ -23,7 +26,7 @@ test('a real waiting service worker prompts and cannot reload an editor', async 
     await page.getByRole('button', { name: 'Cancel & discard draft' }).click();
     await expect(page.getByRole('button', { name: 'Update AhThatsWho' })).toBeEnabled();
     await page.getByRole('button', { name: 'Update AhThatsWho' }).click();
-    await expect(page.getByRole('searchbox')).toBeVisible();
+    await expect(page.locator('.welcome')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Update AhThatsWho' })).not.toBeVisible();
   } finally {
     await writeFile(path, original);

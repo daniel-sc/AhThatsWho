@@ -24,6 +24,9 @@ import { HouseholdView } from '../ui/HouseholdView';
 import { HouseholdList } from '../ui/HouseholdList';
 import { Editor } from '../ui/Editor';
 import { cloudStatus, startBackup } from './backup';
+import { Welcome } from '../ui/Welcome';
+import { createInstallation } from '../ui/InstallHelp';
+import { isFreshNotebook } from '../data/onboarding';
 const Settings = lazy(() => import('../ui/Settings').then((m) => ({ default: m.Settings })));
 const CapturePanel = lazy(() =>
   import('../ui/CapturePanel').then((m) => ({ default: m.CapturePanel })),
@@ -56,6 +59,10 @@ export default function App() {
   const [rows, setRows] = createSignal<HouseholdRecord[]>([]);
   const [contexts, setContexts] = createSignal<Context[]>([]);
   const [inbox, setInbox] = createSignal<Capture[]>([]);
+  const [fresh, setFresh] = createSignal(false);
+  const [returnToCapture, setReturnToCapture] = createSignal(false);
+  const welcome = () =>
+    ready() && fresh() && ui().screen === 'home' && !ui().query && !ui().context;
   const [ready, setReady] = createSignal(false);
   const [error, setError] = createSignal('');
   const [notice, setNotice] = createSignal('');
@@ -112,6 +119,7 @@ export default function App() {
     );
     requestAnimationFrame(() => document.getElementById('app-error')?.focus());
   };
+  const installation = createInstallation(report);
   const current = createMemo(() => rows().find((r) => r.household.id === ui().target));
   const activeCapture = createMemo(() => inbox().find((c) => c.id === ui().capture));
   const index = createMemo(() => createSearchIndex(rows(), contexts()));
@@ -215,14 +223,16 @@ export default function App() {
   onMount(async () => {
     try {
       await db.open();
-      const [households, ctx, items, preferences, saved] = await Promise.all([
+      const [households, ctx, items, preferences, saved, newNotebook] = await Promise.all([
         db.households.toArray(),
         db.contexts.toArray(),
         db.inbox.toArray(),
         getMeta('preferences', { resume: true }),
         getMeta<UI>('ui', initial),
+        isFreshNotebook(),
       ]);
       if (disposed) return;
+      setFresh(newNotebook);
       setRows(households);
       setContexts(ctx);
       setInbox(items);
@@ -263,6 +273,7 @@ export default function App() {
       setReady(true);
       requestAnimationFrame(() => window.scrollTo(0, restored.scroll || 0));
       const subscriptions = [
+        liveQuery(() => isFreshNotebook()).subscribe({ next: setFresh, error: report }),
         liveQuery(() => db.households.toArray()).subscribe(setRows),
         liveQuery(() => db.contexts.toArray()).subscribe(setContexts),
         liveQuery(() => db.inbox.toArray()).subscribe(setInbox),
@@ -303,7 +314,7 @@ export default function App() {
   });
   return (
     <>
-      <header class="app-header">
+      <header class="app-header" classList={{ welcoming: welcome() }}>
         <button class="brand" onClick={home} aria-label="AhThatsWho home">
           <img class="brand-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
           <span>AhThatsWho</span>
@@ -311,7 +322,7 @@ export default function App() {
         <button class="icon-button" aria-label="Settings" onClick={() => navigate('settings')}>
           <Icon name="settings" />
         </button>
-        <Show when={ready() && ui().screen === 'home'}>
+        <Show when={ready() && ui().screen === 'home' && !welcome()}>
           <label class="search">
             <Icon name="search" />
             <input
@@ -327,9 +338,11 @@ export default function App() {
             />
           </label>
         </Show>
-        <span class="backup-label">
-          {online() ? `Backup: ${cloudStatus().toLowerCase()}` : 'Offline · saved locally'}
-        </span>
+        <Show when={!welcome()}>
+          <span class="backup-label">
+            {online() ? `Backup: ${cloudStatus().toLowerCase()}` : 'Offline · saved locally'}
+          </span>
+        </Show>
       </header>
       <main id="main" data-screen={ui().screen}>
         <Show when={error()}>
@@ -359,134 +372,146 @@ export default function App() {
         <Show when={ready()} fallback={<p class="loading">Opening your notebook…</p>}>
           <Suspense fallback={<p>Opening…</p>}>
             <Show when={ui().screen === 'home'}>
-              <section>
-                <h1 class="sr-only">Your people.</h1>
-                <div class="search-results">
-                  <div class="filters">
-                    <button
-                      classList={{ selected: !ui().context }}
-                      aria-pressed={!ui().context}
-                      onClick={() => {
-                        setUI({ ...ui(), context: '', homeAnchor: undefined });
-                        persist();
-                      }}
-                    >
-                      All
-                    </button>
-                    <For each={contexts().filter((c) => c.favorite || c.id === ui().context)}>
-                      {(c) => (
-                        <button
-                          classList={{ selected: ui().context === c.id }}
-                          aria-pressed={ui().context === c.id}
-                          onClick={() => {
-                            setUI({ ...ui(), context: c.id, homeAnchor: undefined });
-                            persist();
-                          }}
-                        >
-                          {c.name}
-                        </button>
-                      )}
-                    </For>
-                    <Show when={contexts().some((c) => !c.favorite)}>
-                      <label class="context-picker">
-                        <span class="sr-only">Other contexts</span>
-                        <select
-                          value=""
-                          onChange={(e) => {
-                            if (e.currentTarget.value) {
-                              setUI({
-                                ...ui(),
-                                context: e.currentTarget.value,
-                                homeAnchor: undefined,
-                              });
-                              persist();
-                            }
-                          }}
-                        >
-                          <option value="">More…</option>
-                          <For each={contexts().filter((c) => !c.favorite)}>
-                            {(c) => <option value={c.id}>{c.name}</option>}
-                          </For>
-                        </select>
-                      </label>
-                    </Show>
-                  </div>
-                  <Show when={results().fallback}>
-                    <p class="notice">
-                      No matches in {contexts().find((c) => c.id === ui().context)?.name}. Showing
-                      matches from other contexts.{' '}
+              <Show
+                when={!welcome()}
+                fallback={
+                  <Welcome
+                    add={newHousehold}
+                    capture={capture}
+                    restore={() => navigate('settings')}
+                    installation={installation}
+                  />
+                }
+              >
+                <section>
+                  <h1 class="sr-only">Your people.</h1>
+                  <div class="search-results">
+                    <div class="filters">
                       <button
-                        class="quiet"
+                        classList={{ selected: !ui().context }}
+                        aria-pressed={!ui().context}
                         onClick={() => {
                           setUI({ ...ui(), context: '', homeAnchor: undefined });
                           persist();
                         }}
                       >
-                        Show all contexts
+                        All
                       </button>
-                    </p>
-                  </Show>
-                  <div class="lookup-toolbar">
-                    <div class="list-heading" role="status" aria-live="polite">
-                      <span>
-                        {results().rows.length}{' '}
-                        {results().rows.length === 1 ? 'household' : 'households'}
-                      </span>
-                      <Show when={results().rows.length}>
-                        <span>Last edited</span>
-                      </Show>
-                    </div>
-                    <button class="add-button" onClick={newHousehold} aria-label="Add household">
-                      +
-                    </button>
-                  </div>
-                  <HouseholdList
-                    rows={results().rows}
-                    contexts={contexts()}
-                    query={ui().query}
-                    restoreAnchor={ui().homeAnchor}
-                    open={openHousehold}
-                  />
-                  <Show when={!results().rows.length}>
-                    <div class="empty-state">
-                      <img class="empty-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
-                      <h2>
-                        {ui().query
-                          ? 'No familiar names yet?'
-                          : ui().context
-                            ? 'This context is empty.'
-                            : 'A place for the people you know.'}
-                      </h2>
-                      <p>
-                        {ui().query
-                          ? 'Try another detail, or capture something new.'
-                          : 'Add a household or save a quick note. Your notebook works offline, without an account.'}
-                      </p>
-                      <div class="actions">
-                        <Show when={ui().query}>
+                      <For each={contexts().filter((c) => c.favorite || c.id === ui().context)}>
+                        {(c) => (
                           <button
+                            classList={{ selected: ui().context === c.id }}
+                            aria-pressed={ui().context === c.id}
                             onClick={() => {
-                              setUI({ ...ui(), query: '', homeAnchor: undefined });
+                              setUI({ ...ui(), context: c.id, homeAnchor: undefined });
                               persist();
                             }}
                           >
-                            Clear search
+                            {c.name}
                           </button>
-                        </Show>
-                        <button class="primary" onClick={newHousehold}>
-                          Add household
-                        </button>
-                        <button onClick={capture}>Capture a note</button>
-                      </div>
-                      <Show when={!ui().query && !ui().context}>
-                        <button class="quiet" onClick={() => navigate('settings')}>
-                          Import or restore
-                        </button>
+                        )}
+                      </For>
+                      <Show when={contexts().some((c) => !c.favorite)}>
+                        <label class="context-picker">
+                          <span class="sr-only">Other contexts</span>
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              if (e.currentTarget.value) {
+                                setUI({
+                                  ...ui(),
+                                  context: e.currentTarget.value,
+                                  homeAnchor: undefined,
+                                });
+                                persist();
+                              }
+                            }}
+                          >
+                            <option value="">More…</option>
+                            <For each={contexts().filter((c) => !c.favorite)}>
+                              {(c) => <option value={c.id}>{c.name}</option>}
+                            </For>
+                          </select>
+                        </label>
                       </Show>
                     </div>
-                  </Show>
-                </div>
-              </section>
+                    <Show when={results().fallback}>
+                      <p class="notice">
+                        No matches in {contexts().find((c) => c.id === ui().context)?.name}. Showing
+                        matches from other contexts.{' '}
+                        <button
+                          class="quiet"
+                          onClick={() => {
+                            setUI({ ...ui(), context: '', homeAnchor: undefined });
+                            persist();
+                          }}
+                        >
+                          Show all contexts
+                        </button>
+                      </p>
+                    </Show>
+                    <div class="lookup-toolbar">
+                      <div class="list-heading" role="status" aria-live="polite">
+                        <span>
+                          {results().rows.length}{' '}
+                          {results().rows.length === 1 ? 'household' : 'households'}
+                        </span>
+                        <Show when={results().rows.length}>
+                          <span>Last edited</span>
+                        </Show>
+                      </div>
+                      <button class="add-button" onClick={newHousehold} aria-label="Add household">
+                        +
+                      </button>
+                    </div>
+                    <HouseholdList
+                      rows={results().rows}
+                      contexts={contexts()}
+                      query={ui().query}
+                      restoreAnchor={ui().homeAnchor}
+                      open={openHousehold}
+                    />
+                    <Show when={!results().rows.length}>
+                      <div class="empty-state">
+                        <img class="empty-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
+                        <h2>
+                          {ui().query
+                            ? 'No familiar names yet?'
+                            : ui().context
+                              ? 'This context is empty.'
+                              : 'A place for the people you know.'}
+                        </h2>
+                        <p>
+                          {ui().query
+                            ? 'Try another detail, or capture something new.'
+                            : 'Add a household or save a quick note. Your notebook works offline, without an account.'}
+                        </p>
+                        <div class="actions">
+                          <Show when={ui().query}>
+                            <button
+                              onClick={() => {
+                                setUI({ ...ui(), query: '', homeAnchor: undefined });
+                                persist();
+                              }}
+                            >
+                              Clear search
+                            </button>
+                          </Show>
+                          <button class="primary" onClick={newHousehold}>
+                            Add household
+                          </button>
+                          <button onClick={capture}>Capture a note</button>
+                        </div>
+                        <Show when={!ui().query && !ui().context}>
+                          <button class="quiet" onClick={() => navigate('settings')}>
+                            Import or restore
+                          </button>
+                        </Show>
+                      </div>
+                    </Show>
+                  </div>
+                </section>
+              </Show>
             </Show>
             <Show when={ui().screen === 'household' && current()}>
               <section>
@@ -616,6 +641,10 @@ export default function App() {
             </Show>
             <Show when={ui().screen === 'capture'}>
               <CapturePanel
+                setupAI={() => {
+                  setReturnToCapture(true);
+                  navigate('settings');
+                }}
                 hints={captureHints}
                 close={() => navigate(ui().previous || 'home')}
                 saved={() => {
@@ -719,6 +748,15 @@ export default function App() {
             </Show>
             <Show when={ui().screen === 'settings'}>
               <Settings
+                installation={installation}
+                returnToCapture={
+                  returnToCapture()
+                    ? () => {
+                        setReturnToCapture(false);
+                        navigate('capture');
+                      }
+                    : undefined
+                }
                 contexts={contexts()}
                 error={report}
                 importing={setImporting}

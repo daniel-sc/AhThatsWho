@@ -1,3 +1,4 @@
+import { InstallHelp, type createInstallation } from './InstallHelp';
 import { recognitionLanguages, defaultRecognitionLanguages } from '../domain/languages';
 import type { Preferences } from '../domain/types';
 import { createSignal, onMount, Show, For } from 'solid-js';
@@ -16,6 +17,8 @@ import {
 import type { CloudConfig, CloudSnapshot } from '../providers/cloudkit';
 import { DEFAULT_CLOUD_CONFIG, currentCloudConfig } from '../app/cloud-config';
 export function Settings(props: {
+  installation: ReturnType<typeof createInstallation>;
+  returnToCapture?: () => void;
   contexts: Context[];
   error: (e: unknown) => void;
   replaced: () => void;
@@ -84,6 +87,9 @@ export function Settings(props: {
   return (
     <section>
       <h1>Settings</h1>
+      <Show when={props.returnToCapture}>
+        <button onClick={props.returnToCapture}>Back to your note</button>
+      </Show>
       <Show when={info()}>
         <p role="status" class="notice">
           {info()}
@@ -546,10 +552,7 @@ export function Settings(props: {
           >
             Request persistent storage
           </button>
-          <p class="fine">
-            Install on iPhone: Safari → Share → Add to Home Screen. Open once online before offline
-            use.
-          </p>
+          <InstallHelp installation={props.installation} />
         </div>
         <div class="settings-block">
           <h2>About AhThatsWho</h2>

@@ -1,8 +1,10 @@
 import { createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { db, getMeta, setMeta, saveCapture } from '../data/db';
 import { now, uuid, type Capture } from '../domain/types';
+import { getKey } from '../providers/openai';
 import { startRecording } from '../capture/recorder';
 export function CapturePanel(props: {
+  setupAI: () => void;
   hints: Capture['hints'];
   close: () => void;
   review: (id: string) => void;
@@ -124,6 +126,17 @@ export function CapturePanel(props: {
     <section class="capture-panel">
       <h1>A name. A small detail.</h1>
       <p class="muted">No need to choose a household. Review before anything changes.</p>
+      <Show when={!getKey()}>
+        <div class="notice">
+          <p>AI needs your OpenAI API key. You can save a note now and process it later.</p>
+          <button
+            disabled={recording() || busy()}
+            onClick={() => void writes.then(props.setupAI).catch(props.error)}
+          >
+            Set up AI
+          </button>
+        </div>
+      </Show>
       <button
         class={`record-button ${recording() ? 'recording' : ''}`}
         disabled={busy() || !!saved() || !ready()}

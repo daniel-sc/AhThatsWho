@@ -1,6 +1,6 @@
 import { For, Show } from 'solid-js';
 import { dateText, personName, type Context, type Household, type Value } from '../domain/types';
-import { highlight, signature, matchingExcerpt } from '../domain/search';
+import { highlight, matchingExcerpt } from '../domain/search';
 export const certainty = (v?: Value<unknown>) =>
   v?.certainty === 'uncertain' ? ' ?' : v?.certainty === 'approximate' ? ' ≈' : '';
 export function Highlight(props: { text?: string; query?: string }) {
@@ -20,7 +20,7 @@ export function HouseholdView(props: {
   const names = () => h().people.filter((p) => p.role === 'adult' || !p.role);
   const others = () => h().people.filter((p) => p.role === 'child' || p.role === 'other');
   return (
-    <div class={`household signature-${signature(h().id)}`}>
+    <div class="household">
       <div class="names">
         <Show
           when={names().length}

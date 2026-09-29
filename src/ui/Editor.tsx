@@ -86,31 +86,37 @@ export function Editor(props: {
     change: (value: Value['certainty']) => void;
   }) {
     const name = createUniqueId();
+    const initiallyOpen = !!p.value;
     const options = [
       { value: '', label: 'Unmarked' },
       { value: 'uncertain', label: 'Unsure' },
       { value: 'approximate', label: 'Approximate' },
     ] as const;
     return (
-      <fieldset class="certainty-control" disabled={p.disabled}>
-        <legend>{p.label}</legend>
-        <div class="certainty-options">
-          <For each={options}>
-            {(option) => (
-              <label>
-                <input
-                  type="radio"
-                  name={name}
-                  value={option.value}
-                  checked={(p.value || '') === option.value}
-                  onChange={() => p.change(option.value || undefined)}
-                />
-                <span>{option.label}</span>
-              </label>
-            )}
-          </For>
-        </div>
-      </fieldset>
+      <details class="certainty-disclosure" open={initiallyOpen}>
+        <summary>
+          {p.label}: {options.find((option) => option.value === (p.value || ''))?.label}
+        </summary>
+        <fieldset class="certainty-control" disabled={p.disabled}>
+          <legend>{p.label}</legend>
+          <div class="certainty-options">
+            <For each={options}>
+              {(option) => (
+                <label>
+                  <input
+                    type="radio"
+                    name={name}
+                    value={option.value}
+                    checked={(p.value || '') === option.value}
+                    onChange={() => p.change(option.value || undefined)}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              )}
+            </For>
+          </div>
+        </fieldset>
+      </details>
     );
   }
   function ValueInput(p: {

@@ -74,3 +74,22 @@ test('correct source inline without keeping contradictory original text', async 
   await expect(page.getByRole('heading', { name: 'Proposed', exact: true })).toHaveCount(0);
   await expect(page.locator('.source')).toHaveText('Actually, a green bicycle.\nMet at school.');
 });
+
+test('optional certainty stays editable and existing uncertainty opens on return', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Add household', exact: true }).first().click();
+  await page.getByLabel('First name', { exact: true }).fill('Alex');
+  const certainty = page.locator('.certainty-disclosure').first();
+  await expect(certainty.getByRole('radio', { name: 'Unsure', exact: true })).not.toBeVisible();
+  await certainty.locator('summary').click();
+  await certainty.getByRole('radio', { name: 'Unsure', exact: true }).check();
+  await certainty.getByRole('radio', { name: 'Unmarked', exact: true }).check();
+  await expect(certainty.getByRole('radio', { name: 'Unsure', exact: true })).toBeVisible();
+  await certainty.getByRole('radio', { name: 'Unsure', exact: true }).check();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(certainty.getByRole('radio', { name: 'Unsure', exact: true })).toBeVisible();
+  await expect(certainty.getByRole('radio', { name: 'Unsure', exact: true })).toBeChecked();
+});

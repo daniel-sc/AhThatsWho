@@ -17,7 +17,6 @@ export function CapturePanel(props: {
   const [busy, setBusy] = createSignal(false);
   const [ready, setReady] = createSignal(false);
   const [status, setStatus] = createSignal('');
-  let input!: HTMLTextAreaElement;
   let stop: (() => void) | undefined;
   let processOnStop = false;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -123,7 +122,6 @@ export function CapturePanel(props: {
   }
   return (
     <section class="capture-panel">
-      <p class="eyebrow">CAPTURE NOW, REMEMBER LATER</p>
       <h1>A name. A small detail.</h1>
       <p class="muted">No need to choose a household. Review before anything changes.</p>
       <button
@@ -140,9 +138,9 @@ export function CapturePanel(props: {
         <span aria-hidden="true">{recording() ? '■' : '●'}</span>{' '}
         {recording() ? `Stop & process · ${seconds()}s` : 'Record a voice note'}
       </button>
-      <p class="fine">
-        Stop &amp; process saves your recording, then sends it to OpenAI for transcription and a
-        suggested update. You review the suggestion before applying it.
+      <p class="fine capture-help">
+        Stopping sends audio to OpenAI for transcription and a suggestion. Nothing changes until you
+        approve it.
       </p>
       <Show when={saved()}>
         <p role="status">
@@ -153,32 +151,19 @@ export function CapturePanel(props: {
               : 'Audio saved on this device. Choose Save for later or Process now.'}
         </p>
       </Show>
-      <p class="fine">
-        A local copy of the audio is kept until applied or discarded. Only text and transcripts are
-        backed up.
-      </p>
-      <button class="quiet" onClick={() => input.focus()}>
-        Write a note
-      </button>
-      <label class="sr-only" for="capture-text">
-        Capture text
-      </label>
+      <label for="capture-text">Write a note</label>
       <textarea
         id="capture-text"
-        ref={input}
+        aria-label="Capture text"
         placeholder="A name, where you met, something to remember…"
         value={text()}
         disabled={!ready()}
         onInput={(e) => checkpoint(e.currentTarget.value)}
         maxLength={20000}
-        rows={6}
+        rows={4}
       />
       <p class="fine" role="status">
         {status()}
-      </p>
-      <p class="fine">
-        Process now sends your note and relevant notebook details to OpenAI for a suggestion. You
-        review it before applying.
       </p>
       <div class="actions">
         <button
@@ -195,6 +180,11 @@ export function CapturePanel(props: {
           Process now
         </button>
       </div>
+      <p class="fine capture-help">
+        Save for later saves without processing. Process now sends your note and relevant notebook
+        details to OpenAI for review. Audio stays local until applied or discarded and is not
+        included in backups.
+      </p>
       <button class="quiet" disabled={recording()} onClick={props.close}>
         Back · keep draft
       </button>

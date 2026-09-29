@@ -1,5 +1,6 @@
 import { createSignal, createMemo, createEffect, For, onMount, onCleanup, on } from 'solid-js';
 import type { Context, HouseholdRecord } from '../domain/types';
+import { Icon } from './Icon';
 import { HouseholdView } from './HouseholdView';
 // Variable-height windowing keeps large notebooks responsive without clipping people.
 export function HouseholdList(props: {
@@ -112,8 +113,8 @@ export function HouseholdList(props: {
           query={props.query}
           compact
         />
-        <span class="row-arrow" aria-hidden="true">
-          ›
+        <span class="row-arrow">
+          <Icon name="chevron" />
         </span>
       </button>
     );

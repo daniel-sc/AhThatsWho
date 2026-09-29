@@ -83,7 +83,6 @@ export function Settings(props: {
   }
   return (
     <section>
-      <p class="eyebrow">YOUR PRIVATE NOTEBOOK</p>
       <h1>Settings</h1>
       <Show when={info()}>
         <p role="status" class="notice">
@@ -141,26 +140,28 @@ export function Settings(props: {
               Select all languages you use for recordings and text. Select none for automatic
               detection.
             </p>
-            <For each={recognitionLanguages}>
-              {(language) => (
-                <label class="check">
-                  <input
-                    type="checkbox"
-                    checked={languages().includes(language.code)}
-                    onChange={(e) => {
-                      const next = e.currentTarget.checked
-                        ? [...languages(), language.code]
-                        : languages().filter((code) => code !== language.code);
-                      void act(async () => {
-                        await savePreferences({ recognitionLanguages: next });
-                        setLanguages(next);
-                      });
-                    }}
-                  />
-                  {language.name}
-                </label>
-              )}
-            </For>
+            <div class="language-options">
+              <For each={recognitionLanguages}>
+                {(language) => (
+                  <label class="check">
+                    <input
+                      type="checkbox"
+                      checked={languages().includes(language.code)}
+                      onChange={(e) => {
+                        const next = e.currentTarget.checked
+                          ? [...languages(), language.code]
+                          : languages().filter((code) => code !== language.code);
+                        void act(async () => {
+                          await savePreferences({ recognitionLanguages: next });
+                          setLanguages(next);
+                        });
+                      }}
+                    />
+                    {language.name}
+                  </label>
+                )}
+              </For>
+            </div>
           </fieldset>
           <p class="fine">{keyStatus()}</p>
           <label>

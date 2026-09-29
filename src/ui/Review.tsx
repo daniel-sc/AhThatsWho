@@ -277,6 +277,7 @@ export function Review(props: {
                 </button>
               </Show>
               <button
+                classList={{ primary: !proposal()?.household }}
                 disabled={processing()}
                 onClick={() =>
                   void act(async () => {

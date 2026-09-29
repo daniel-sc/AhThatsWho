@@ -19,6 +19,7 @@ import {
   type Household,
 } from '../domain/types';
 import { createSearchIndex, searchIndex } from '../domain/search';
+import { Icon } from '../ui/Icon';
 import { HouseholdView } from '../ui/HouseholdView';
 import { HouseholdList } from '../ui/HouseholdList';
 import { Editor } from '../ui/Editor';
@@ -305,14 +306,14 @@ export default function App() {
       <header class="app-header">
         <button class="brand" onClick={home} aria-label="AhThatsWho home">
           <img class="brand-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
-          <span>
-            AhThatsWho<small>Names, in context.</small>
-          </span>
+          <span>AhThatsWho</span>
         </button>
         <div class="header-right">
-          <span class="backup-label">{online() ? cloudStatus() : 'Offline · saved locally'}</span>
+          <span class="backup-label">
+            {online() ? `Backup: ${cloudStatus().toLowerCase()}` : 'Offline · saved locally'}
+          </span>
           <button class="icon-button" aria-label="Settings" onClick={() => navigate('settings')}>
-            ⚙
+            <Icon name="settings" />
           </button>
         </div>
       </header>
@@ -347,7 +348,6 @@ export default function App() {
               <section>
                 <div class="section-heading">
                   <div>
-                    <p class="eyebrow">YOUR EVERYDAY PEOPLE</p>
                     <h1>Your people.</h1>
                   </div>
                   <button class="add-button" onClick={newHousehold} aria-label="Add household">
@@ -356,7 +356,7 @@ export default function App() {
                 </div>
                 <div class="search-results">
                   <label class="search">
-                    <span aria-hidden="true">⌕</span>
+                    <Icon name="search" />
                     <input
                       type="search"
                       aria-label="Search names and details"
@@ -372,6 +372,7 @@ export default function App() {
                   <div class="filters">
                     <button
                       classList={{ selected: !ui().context }}
+                      aria-pressed={!ui().context}
                       onClick={() => {
                         setUI({ ...ui(), context: '', homeAnchor: undefined });
                         persist();
@@ -383,6 +384,7 @@ export default function App() {
                       {(c) => (
                         <button
                           classList={{ selected: ui().context === c.id }}
+                          aria-pressed={ui().context === c.id}
                           onClick={() => {
                             setUI({ ...ui(), context: c.id, homeAnchor: undefined });
                             persist();
@@ -436,7 +438,9 @@ export default function App() {
                       {results().rows.length}{' '}
                       {results().rows.length === 1 ? 'HOUSEHOLD' : 'HOUSEHOLDS'}
                     </span>
-                    <span>Last edited</span>
+                    <Show when={results().rows.length}>
+                      <span>Last edited</span>
+                    </Show>
                   </div>
                   <HouseholdList
                     rows={results().rows}
@@ -475,8 +479,12 @@ export default function App() {
                           Add household
                         </button>
                         <button onClick={capture}>Capture a note</button>
-                        <button onClick={() => navigate('settings')}>Import or restore</button>
                       </div>
+                      <Show when={!ui().query && !ui().context}>
+                        <button class="quiet" onClick={() => navigate('settings')}>
+                          Import or restore
+                        </button>
+                      </Show>
                     </div>
                   </Show>
                 </div>
@@ -629,11 +637,16 @@ export default function App() {
                 <div class="filters">
                   <button
                     classList={{ selected: !completed() }}
+                    aria-pressed={!completed()}
                     onClick={() => setCompleted(false)}
                   >
                     To review · {unresolved().length}
                   </button>
-                  <button classList={{ selected: completed() }} onClick={() => setCompleted(true)}>
+                  <button
+                    classList={{ selected: completed() }}
+                    aria-pressed={completed()}
+                    onClick={() => setCompleted(true)}
+                  >
                     Completed
                   </button>
                 </div>
@@ -725,7 +738,14 @@ export default function App() {
       </main>
       <nav class="bottom-nav" aria-label="Main navigation">
         <button
-          classList={{ active: ui().screen === 'home' }}
+          classList={{
+            active: ['home', 'household', 'editor', 'history', 'trash'].includes(ui().screen),
+          }}
+          aria-current={
+            ['home', 'household', 'editor', 'history', 'trash'].includes(ui().screen)
+              ? 'page'
+              : undefined
+          }
           disabled={recording() || importing()}
           onClick={home}
         >
@@ -738,6 +758,7 @@ export default function App() {
         </button>
         <button
           classList={{ active: ui().screen === 'capture' }}
+          aria-current={ui().screen === 'capture' ? 'page' : undefined}
           disabled={recording() || importing()}
           onClick={capture}
         >
@@ -751,6 +772,7 @@ export default function App() {
         </button>
         <button
           classList={{ active: ui().screen === 'inbox' || ui().screen === 'review' }}
+          aria-current={ui().screen === 'inbox' || ui().screen === 'review' ? 'page' : undefined}
           disabled={recording() || importing()}
           onClick={() => navigate('inbox')}
         >

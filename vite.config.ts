@@ -6,18 +6,24 @@ export default defineConfig({
     solid(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.png', 'brand-mark.png', 'apple-touch-icon.png'],
       manifest: {
         name: 'AhThatsWho',
         short_name: 'AhThatsWho',
         description: 'Names, in context.',
-        theme_color: '#183e35',
-        background_color: '#f8f7f2',
+        theme_color: '#f2ff00',
+        background_color: '#faf9f2',
         display: 'standalone',
         start_url: '/',
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          {
+            src: '/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
         ],
       },
       workbox: {

@@ -304,7 +304,7 @@ export default function App() {
     <>
       <header class="app-header">
         <button class="brand" onClick={home} aria-label="AhThatsWho home">
-          <img class="brand-icon" src="/icon.svg" alt="" aria-hidden="true" />
+          <img class="brand-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
           <span>
             AhThatsWho<small>Names, in context.</small>
           </span>
@@ -447,9 +447,7 @@ export default function App() {
                   />
                   <Show when={!results().rows.length}>
                     <div class="empty-state">
-                      <span class="empty-icon" aria-hidden="true">
-                        N·
-                      </span>
+                      <img class="empty-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
                       <h2>
                         {ui().query
                           ? 'No familiar names yet?'

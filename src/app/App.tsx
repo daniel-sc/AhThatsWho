@@ -73,6 +73,7 @@ export default function App() {
   const [importing, setImporting] = createSignal(false);
   const [completed, setCompleted] = createSignal(false);
   const [online, setOnline] = createSignal(navigator.onLine);
+  let searchInput: HTMLInputElement | undefined;
   let cancelSearchScroll = () => {};
   onCleanup(() => cancelSearchScroll());
   function scrollSearchAfterKeyboard(input: HTMLInputElement) {
@@ -323,9 +324,10 @@ export default function App() {
           <Icon name="settings" />
         </button>
         <Show when={ready() && ui().screen === 'home' && !welcome()}>
-          <label class="search">
+          <div class="search">
             <Icon name="search" />
             <input
+              ref={searchInput}
               type="search"
               aria-label="Search names and details"
               placeholder="Search names and details"
@@ -336,7 +338,21 @@ export default function App() {
                 persist();
               }}
             />
-          </label>
+            <Show when={ui().query}>
+              <button
+                type="button"
+                class="search-clear"
+                aria-label="Clear search"
+                onClick={() => {
+                  setUI({ ...ui(), query: '', homeAnchor: undefined });
+                  persist();
+                  searchInput?.focus();
+                }}
+              >
+                <Icon name="close" />
+              </button>
+            </Show>
+          </div>
         </Show>
         <Show when={!welcome()}>
           <span class="backup-label">
@@ -461,7 +477,7 @@ export default function App() {
                         </Show>
                       </div>
                       <button class="add-button" onClick={newHousehold} aria-label="Add household">
-                        +
+                        <Icon name="plus" />
                       </button>
                     </div>
                     <HouseholdList

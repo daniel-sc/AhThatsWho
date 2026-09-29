@@ -71,6 +71,9 @@ test('public sponsorship preserves failed notes and uses a personal key only aft
     .click();
   await page.getByRole('button', { name: /Avery from pottery/ }).click();
   await page.getByRole('button', { name: 'Process with OpenAI', exact: true }).click();
+  // The previous error can still be visible while the retry is starting.
+  await expect.poll(() => sponsoredCalls).toBe(2);
+  await expect(page.getByRole('button', { name: 'Process with OpenAI', exact: true })).toBeEnabled();
   await expect(page.getByRole('alert').first()).toContainText('Sponsored AI has reached');
   expect(personalCalls).toBe(0);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();

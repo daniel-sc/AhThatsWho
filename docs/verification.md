@@ -11,7 +11,8 @@ Recorded 27 September 2026. Build `0.1.0-beta.1`; format 1. The recorded test bu
 - `npm run check`, `npm test` (**60 tests**), and `npm run build` passed. Worker tests mock OpenAI and cover fixed request options, bounded bodies, transcription forwarding, missing credentials and sanitized upstream failures.
 - Production-build browser suite: 25/27 passed initially; two test setup/selector failures were corrected, then both affected files (5 journeys) passed. All 27 journeys are covered by the successful runs. Sponsored voice/transcript retry and explicit BYOK switching are included; no live inference occurred.
 - Wrangler deployment dry run passed (Worker bundle plus static assets). Local workerd smoke passed for static assets, API routing including navigation requests, no-store headers, unknown routes and missing-secret 503 responses.
-- No OpenAI key exists in the local environment or `.dev.vars`. No live deployment or OpenAI platform budget change was made. Set the runtime secret and enforced project spending limit using [deployment instructions](deployment.md#sponsored-ai) before activation. Actual installed iOS/Android acceptance remains pending.
+- Deployed source `2773bf0` to `ahthatswho` on 29 September 2026; Cloudflare version `2efc28d7-0af3-4ece-a8a6-b605a8cd06cb`. Preserved the existing repository CloudKit build configuration. Production smoke verified the new app (HTTP 200 with CSP) and Worker API (no-store HTTP 503: sponsorship secret not configured), without inference.
+- No OpenAI key exists in the local environment or `.dev.vars`, and no platform budget change was made. The Worker script is now deployed, so Cloudflare can accept the runtime secret. Set it and the enforced project spending limit using [deployment instructions](deployment.md#sponsored-ai) before activation. Actual installed iOS/Android acceptance remains pending.
 
 ### Earlier baseline
 

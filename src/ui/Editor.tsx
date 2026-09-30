@@ -298,15 +298,48 @@ export function Editor(props: {
           <For each={h().people.map((p) => p.id)}>
             {(id) => {
               const p = h().people.find((p) => p.id === id);
-              const hasDetails = !!(p?.role || p?.birthDate || p?.ageNote || p?.notes);
+              const fields = [
+                { key: 'firstName', label: 'First name' },
+                { key: 'lastName', label: 'Last name' },
+                { key: 'role', label: 'Role' },
+                { key: 'birthDate', label: 'Birth date' },
+                { key: 'ageNote', label: 'Age note' },
+                { key: 'notes', label: 'Notes' },
+              ] as const;
+              type Field = (typeof fields)[number]['key'];
+              const isBlank = !fields.some(({ key }) => p?.[key]);
+              // Visibility belongs to this editing session, not the changing field values.
+              const [visible, setVisible] = createSignal<Field[]>(
+                fields
+                  .filter(
+                    ({ key }) => p?.[key] || (isBlank && ['firstName', 'lastName'].includes(key)),
+                  )
+                  .map(({ key }) => key),
+              );
+              let container!: HTMLFieldSetElement;
+              function addField(key: Field) {
+                setVisible((current) => [...current, key]);
+                container
+                  .querySelector<HTMLElement>(
+                    `[data-field="${key}"] input, [data-field="${key}"] select, [data-field="${key}"] textarea`,
+                  )
+                  ?.focus();
+              }
               return (
-                <fieldset class="person-editor">
+                <fieldset class="person-editor" ref={container}>
                   <legend>Person</legend>
-                  <ValueInput id={id} field="firstName" label="First name" />
-                  <ValueInput id={id} field="lastName" label="Last name" />
-                  <details open={hasDetails}>
-                    <summary>More details: role, birth date and notes</summary>
-                    <label>
+                  <Show when={visible().includes('firstName')}>
+                    <div data-field="firstName">
+                      <ValueInput id={id} field="firstName" label="First name" />
+                    </div>
+                  </Show>
+                  <Show when={visible().includes('lastName')}>
+                    <div data-field="lastName">
+                      <ValueInput id={id} field="lastName" label="Last name" />
+                    </div>
+                  </Show>
+                  <Show when={visible().includes('role')}>
+                    <label data-field="role">
                       Role
                       <select
                         value={h().people.find((p) => p.id === id)?.role || ''}
@@ -324,9 +357,19 @@ export function Editor(props: {
                         <option value="other">Other</option>
                       </select>
                     </label>
-                    <DateInput id={id} />
-                    <ValueInput id={id} field="ageNote" label="Age or original date wording" />
-                    <label>
+                  </Show>
+                  <Show when={visible().includes('birthDate')}>
+                    <div data-field="birthDate">
+                      <DateInput id={id} />
+                    </div>
+                  </Show>
+                  <Show when={visible().includes('ageNote')}>
+                    <div data-field="ageNote">
+                      <ValueInput id={id} field="ageNote" label="Age or original date wording" />
+                    </div>
+                  </Show>
+                  <Show when={visible().includes('notes')}>
+                    <label data-field="notes">
                       Person notes
                       <textarea
                         value={h().people.find((p) => p.id === id)?.notes || ''}
@@ -336,7 +379,20 @@ export function Editor(props: {
                         maxLength={20000}
                       />
                     </label>
-                  </details>
+                  </Show>
+                  <Show when={visible().length < fields.length}>
+                    <div class="add-detail-row" role="group" aria-label="Add person detail">
+                      <span>Add detail</span>
+                      <For each={fields.filter(({ key }) => !visible().includes(key))}>
+                        {(field) => (
+                          <button type="button" onClick={() => addField(field.key)}>
+                            <span aria-hidden="true">+ </span>
+                            {field.label}
+                          </button>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
                   <button
                     type="button"
                     class="quiet danger"

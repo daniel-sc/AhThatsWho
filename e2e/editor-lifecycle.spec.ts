@@ -72,3 +72,40 @@ test('manual capture proposal cleans up its draft after applying', async ({ page
   await page.getByRole('button', { name: 'Save & apply', exact: true }).click();
   await expectCleanSave(page);
 });
+
+test('person details stay open during editing and hide when reopened empty', async ({ page }) => {
+  await page.goto('/');
+  await page
+    .getByRole('button', { name: /^(Add household|Add a person)/ })
+    .first()
+    .click();
+  await page.getByLabel('First name', { exact: true }).fill('Beatrice');
+  await expect(page.getByLabel('Last name', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Person notes', { exact: true })).toHaveCount(0);
+  const addDetail = page.getByRole('group', { name: 'Add person detail', exact: true });
+  await addDetail.getByRole('button', { name: 'Notes', exact: true }).click();
+  await expect(page.getByLabel('Person notes', { exact: true })).toBeFocused();
+  await page.getByLabel('Person notes', { exact: true }).fill('Met at choir');
+  await addDetail.getByRole('button', { name: 'Age note', exact: true }).click();
+  const age = page.getByLabel('Age or original date wording', { exact: true });
+  await expect(age).toBeFocused();
+  await age.fill('About 40');
+  await age.clear();
+  await expect(age).toBeVisible();
+  await expect(addDetail.getByRole('button', { name: 'Age note', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expectCleanSave(page);
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(age).toHaveCount(0);
+  await expect(page.getByLabel('Last name', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Person notes', { exact: true })).toHaveValue('Met at choir');
+  await addDetail.getByRole('button', { name: 'Birth date', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Precision', exact: true })).toBeFocused();
+  await page.getByRole('combobox', { name: 'Precision', exact: true }).selectOption('year');
+  await page.getByLabel('Year', { exact: true }).fill('1986');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expectCleanSave(page);
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(page.getByLabel('Year', { exact: true })).toHaveValue('1986');
+  await expect(page.getByRole('combobox', { name: 'Role', exact: true })).toHaveCount(0);
+});

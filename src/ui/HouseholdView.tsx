@@ -19,6 +19,12 @@ export function HouseholdView(props: {
   const h = () => props.household;
   const names = () => h().people.filter((p) => p.role === 'adult' || !p.role);
   const others = () => h().people.filter((p) => p.role === 'child' || p.role === 'other');
+  const summary = () =>
+    props.compact
+      ? h().cue?.trim() ||
+        h().notes?.trim() ||
+        (h().people.length === 1 ? h().people[0].notes?.trim() : undefined)
+      : h().cue;
   return (
     <div class="household">
       <div class="names">
@@ -88,9 +94,9 @@ export function HouseholdView(props: {
           </Show>
         </div>
       </Show>
-      <Show when={h().cue}>
-        <div class="cue">
-          <Highlight text={h().cue} query={props.query} />
+      <Show when={summary()}>
+        <div class="cue" classList={{ 'compact-cue': props.compact }}>
+          <Highlight text={summary()} query={props.query} />
         </div>
       </Show>
       <Show when={!props.compact}>

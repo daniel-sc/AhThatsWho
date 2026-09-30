@@ -422,6 +422,11 @@ main[data-screen='home'] {
   color: var(--muted);
   margin-top: 5px;
 }
+.compact-cue {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tags {
   display: flex;
   flex-wrap: wrap;

@@ -126,7 +126,6 @@ export function Settings(props: {
                 onClick={() =>
                   void act(async () => {
                     await replaceData(b);
-                    if (cloudSignedIn()) await authorizeBackup();
                     closePreview();
                     props.replaced();
                     setInfo('Data replaced. Previous local data is recoverable below.');

@@ -120,10 +120,6 @@ export async function renameDrive(label: string) {
   await setMeta('driveInstallation', { ...(await installation()), label });
 }
 export const deleteDriveHistory = (id: string) => driveRequest('delete-history', { id });
-export async function loadDriveSnapshot(id: string): Promise<string> {
-  const b = await driveRequest<unknown>(`snapshots/${id}`);
-  return JSON.stringify(b);
-}
 // Preserve exact uploaded bytes for checksum verification and portable downloads.
 async function rawSnapshot(id: string) {
   const local = await installation(),

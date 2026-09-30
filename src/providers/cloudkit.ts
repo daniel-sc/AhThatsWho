@@ -5,19 +5,8 @@ export interface CloudConfig {
   apiToken: string;
   environment: 'development' | 'production';
 }
-export interface CloudSnapshot {
-  id: string;
-  exportedAt: string;
-  bytes: number;
-  digest: string;
-  version: number;
-}
-export interface BackupProvider {
-  list(): Promise<CloudSnapshot[]>;
-  save(id: string, json: string, hash: string): Promise<void>;
-  load(id: string): Promise<string>;
-  prune(keep: number): Promise<void>;
-}
+import type { BackupProvider, CloudSnapshot } from '../backup/contracts';
+export type { BackupProvider, CloudSnapshot } from '../backup/contracts';
 type CKRecord = {
   recordName: string;
   recordType: string;

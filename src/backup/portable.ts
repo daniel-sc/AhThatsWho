@@ -165,6 +165,7 @@ export async function replaceData(input: Backup, d: AhThatsWhoDB = db) {
       await setMeta(
         'backup',
         {
+          destination: previous.destination,
           counter: previous.counter + 1,
           uploadedCounter: 0,
           generation: uuid(),

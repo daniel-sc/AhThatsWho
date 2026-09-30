@@ -1,3 +1,5 @@
+import { driveRequest } from './server/drive';
+import type { DriveEnv } from './server/drive-common';
 import { assert, object, string } from './domain/integrity';
 import { recognitionLanguages } from './domain/languages';
 import {
@@ -9,7 +11,7 @@ import {
   responseBody,
 } from './providers/openai-contract';
 
-interface Env {
+interface Env extends DriveEnv {
   OPENAI_API_KEY?: string;
   ASSETS: { fetch(request: Request): Promise<Response> };
 }
@@ -158,6 +160,7 @@ async function openai(key: string, path: string, body?: BodyInit, isJSON = false
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const path = new URL(request.url).pathname;
+    if (path.startsWith('/api/backup/')) return driveRequest(request, env);
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (!['/api/ai/generate', '/api/ai/transcribe', '/api/ai/check'].includes(path))
       return json({ error: 'Not found.' }, 404);

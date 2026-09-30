@@ -106,11 +106,14 @@ export interface Backup {
   preferences: Preferences;
 }
 export interface BackupState {
+  destination?: string;
   counter: number;
   uploadedCounter: number;
   generation: string;
   authoritative: boolean;
   lastSuccess?: string;
+  lastSnapshotId?: string;
+  retentionPending?: boolean;
   pendingSnapshot?: {
     id: string;
     counter: number;

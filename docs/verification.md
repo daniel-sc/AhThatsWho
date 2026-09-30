@@ -76,3 +76,13 @@ Five-second active-app backup debounce with bounded retry backoff to five minute
 Only format 1 exists; there is no historical format to migrate yet. Unsupported older/newer input is rejected without mutation. Future versions must introduce shared deterministic sequential migrations before changing the global version.
 
 No full-beta sign-off until the critical live-provider, iPhone and private-recovery gates pass.
+
+## Google Drive backup branch — 30 September 2026
+
+Branch `feat/google-drive-backups` adds independent installation histories with backend OAuth and Google Drive app-data snapshots. See [the agreed design](backup-design-decisions.md) and [provisioning/setup](google-drive-setup.md).
+
+- TypeScript checks and production frontend build pass.
+- 81 unit/integration tests pass, including real SQLite-backed session/flow tests, OAuth browser binding and one-time completion, account/origin isolation, 90-day expiry, idempotent/uncertain uploads, checksum failures, per-history retention, and obsolete-destination guards.
+- 32 Chromium browser journeys pass, including connection return, restore preview/cancel, copying an old history into a new installation, explicit account switching, failed upload/retry, disconnect, and cross-browser completion codes. The initial three Drive journeys also passed three repetitions after fixing a startup race.
+- The Worker bundle builds with D1 and the configured preview-origin allowlist. Preview uses a separate Worker/database and does not inherit production OAuth or sponsored-AI credentials.
+- Real Google OAuth and installed-iPhone verification remain blocked/pending. The available GCP service account cannot create the requested project without an authorized parent; the deployment does not claim a live Google connection.

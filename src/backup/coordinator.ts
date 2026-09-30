@@ -1,7 +1,7 @@
 import { db, backupState, setMeta, type AhThatsWhoDB } from '../data/db';
 import { digest, snapshot } from './portable';
 import { now, uuid } from '../domain/types';
-import type { BackupProvider } from '../providers/cloudkit';
+import type { BackupProvider } from './contracts';
 import { assert } from '../domain/integrity';
 export class BackupCoordinator {
   private running = false;
@@ -9,11 +9,16 @@ export class BackupCoordinator {
     private provider: BackupProvider,
     private d: AhThatsWhoDB = db,
     private notify: (s: string) => void = () => {},
+    private destination?: string,
   ) {}
   async authorize() {
     await this.provider.list();
     await this.d.transaction('rw', this.d.meta, async () => {
       const state = await backupState(this.d);
+      assert(
+        !this.destination || state.destination === this.destination,
+        'Backup destination changed',
+      );
       await setMeta(
         'backup',
         { ...state, authoritative: true, counter: state.counter + 1 },
@@ -21,12 +26,26 @@ export class BackupCoordinator {
       );
     });
   }
+  private async prune(generation: string, id: string) {
+    try {
+      await this.provider.load(id);
+      await this.provider.prune(10);
+      await this.d.transaction('rw', this.d.meta, async () => {
+        const state = await backupState(this.d);
+        if (state.generation === generation && state.lastSnapshotId === id)
+          await setMeta('backup', { ...state, retentionPending: false }, this.d);
+      });
+    } catch {
+      this.notify('Backed up; retention retry needed');
+    }
+  }
   async run() {
     if (this.running) return;
     this.running = true;
     let generation: string | undefined;
     try {
       let state = await backupState(this.d);
+      if (this.destination && state.destination !== this.destination) return;
       generation = state.generation;
       if (!state.authoritative) {
         this.notify('Choose restore or start fresh');
@@ -34,6 +53,8 @@ export class BackupCoordinator {
       }
       if (state.counter <= state.uploadedCounter && !state.pendingSnapshot) {
         this.notify(state.lastSuccess ? 'Backed up' : 'No backup yet');
+        if (state.retentionPending && state.lastSnapshotId)
+          await this.prune(state.generation, state.lastSnapshotId);
         return;
       }
       this.notify('Uploading');
@@ -60,7 +81,9 @@ export class BackupCoordinator {
         });
         if (!retained) return;
       }
+      if ((await backupState(this.d)).generation !== generation) return;
       const existing = (await this.provider.list()).find((s) => s.id === pending!.id);
+      if ((await backupState(this.d)).generation !== generation) return;
       if (!existing) await this.provider.save(pending.id, pending.json, pending.digest);
       const retrieved = await this.provider.load(pending.id);
       assert(
@@ -78,6 +101,8 @@ export class BackupCoordinator {
             ...state,
             uploadedCounter: Math.max(state.uploadedCounter, pending!.counter),
             lastSuccess: now(),
+            lastSnapshotId: pending.id,
+            retentionPending: true,
             pendingSnapshot: undefined,
             error: undefined,
           },
@@ -87,11 +112,7 @@ export class BackupCoordinator {
       if (currentGeneration) {
         const latest = await backupState(this.d);
         this.notify(latest.counter > latest.uploadedCounter ? 'Pending' : 'Backed up');
-        try {
-          await this.provider.prune(10);
-        } catch {
-          this.notify('Backed up; retention retry needed');
-        }
+        await this.prune(generation, pending.id);
       }
     } catch (e) {
       let belongsToCurrentDataset = false;

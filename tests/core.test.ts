@@ -411,3 +411,60 @@ it('round-trips recognition languages while accepting older backups', async () =
   exported.preferences.recognitionLanguages = ['invalid'];
   expect(() => parseBackup(JSON.stringify(exported))).toThrow('Invalid recognition language');
 });
+
+it('retries retention on a manual backup even when there are no new edits', async () => {
+  const d = database();
+  await seed(d);
+  const stored = new Map<string, string>();
+  let attempts = 0;
+  const provider: BackupProvider = {
+    async list() {
+      return [];
+    },
+    async save(id, json) {
+      stored.set(id, json);
+    },
+    async load(id) {
+      return stored.get(id)!;
+    },
+    async prune() {
+      attempts++;
+      if (attempts === 1) throw new Error('Temporary retention failure');
+    },
+  };
+  const coordinator = new BackupCoordinator(provider, d);
+  await coordinator.run();
+  expect((await backupState(d)).retentionPending).toBe(true);
+  const successfulAt = (await backupState(d)).lastSuccess;
+  await coordinator.run();
+  expect(attempts).toBe(2);
+  expect((await backupState(d)).retentionPending).toBe(false);
+  expect((await backupState(d)).lastSuccess).toBe(successfulAt);
+  expect(stored.size).toBe(1);
+});
+
+it('an obsolete destination coordinator cannot acknowledge or upload the new destination', async () => {
+  const d = database();
+  await seed(d);
+  await setMeta('backup', { ...(await backupState(d)), destination: 'drive:new-account' }, d);
+  let touched = false;
+  const provider: BackupProvider = {
+    async list() {
+      touched = true;
+      return [];
+    },
+    async save() {
+      touched = true;
+    },
+    async load() {
+      touched = true;
+      return '';
+    },
+    async prune() {
+      touched = true;
+    },
+  };
+  await new BackupCoordinator(provider, d, () => {}, 'drive:old-account').run();
+  expect(touched).toBe(false);
+  expect((await backupState(d)).uploadedCounter).toBe(0);
+});

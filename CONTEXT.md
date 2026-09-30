@@ -16,3 +16,12 @@ A proposed update to an existing household that combines captured information wi
 **New household draft**:
 A proposed new household based on captured information, without carrying over facts from an existing household proposed as a match.
 _Avoid_: Copy of a merge draft
+
+**Notebook backup**:
+A saved copy of notebook content from a particular point in time that can be used for recovery. Changes saved locally may still be waiting to enter a verified cloud backup.
+
+**Installation**:
+An independent local copy of AhThatsWho and its notebook. A browser and an installed PWA with separate local data are separate installations, even on the same physical device.
+
+**Backup history**:
+The saved notebook backups belonging to one installation at a cloud destination. Installations connected to the same Google account keep separate histories.

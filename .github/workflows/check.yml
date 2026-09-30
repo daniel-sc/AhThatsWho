@@ -69,7 +69,7 @@ jobs:
           else
             # Hash the full branch name: stable, valid DNS alias, no slug collisions.
             alias="branch-$(printf '%s' "$DEPLOY_BRANCH" | sha256sum | cut -c1-16)"
-            mise exec -- wrangler versions upload --preview-alias "$alias" 2>&1 | tee deployment.log
+            mise exec -- wrangler versions upload --env preview --preview-alias "$alias" 2>&1 | tee deployment.log
           fi
           {
             echo '### Cloudflare deployment'

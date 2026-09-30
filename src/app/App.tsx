@@ -271,6 +271,13 @@ export default function App() {
         restored = { ...restored, screen: 'inbox' };
       if (restored.context && !ctx.some((c) => c.id === restored.context))
         restored = { ...restored, context: '', homeAnchor: undefined };
+      if (
+        new URLSearchParams(location.search).has('backup') ||
+        (await getMeta('driveFlow', undefined))
+      ) {
+        restored = { ...initial, screen: 'settings' };
+        window.history.replaceState(null, '', location.pathname);
+      }
       setUI(restored);
       setReady(true);
       requestAnimationFrame(() => window.scrollTo(0, restored.scroll || 0));

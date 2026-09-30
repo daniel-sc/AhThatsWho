@@ -1,6 +1,6 @@
 # AhThatsWho
 
-A personal, local-first name notebook. Solid + Vite + TypeScript, Dexie, plain CSS, vite-plugin-pwa; Cloudflare Workers Static Assets. People stay embedded in households. CloudKit is backup, not synchronization.
+A personal, local-first name notebook. Solid + Vite + TypeScript, Dexie, plain CSS, vite-plugin-pwa; Cloudflare Workers Static Assets. People stay embedded in households. Cloud backup uses snapshots, not synchronization.
 
 **Status:** working beta candidate, not a verified full beta. See [verification](docs/verification.md) for actual checks and release blockers. No live OpenAI/CloudKit or iPhone success is claimed.
 
@@ -37,6 +37,8 @@ AI is sponsored by default, with no login or personal key. Settings → AI payme
 
 Settings → Recognition languages accepts multiple selections (for example, German and English). German is the default; clear all selections for automatic detection. Selected languages guide both transcription and LLM conversion. Generated notes follow the source language. Transcription prioritizes names from the selected household and context, using deduplicated, bounded keyword hints.
 
+Optional Google Drive backups use backend-managed authorization with no separate app signup. See [Google Drive setup](docs/google-drive-setup.md) for OAuth, isolated preview configuration, retention and recovery. Each installation keeps its own history; notebook snapshots pass through the Worker to hidden Drive app storage without intentional backend persistence or logging. Refresh credentials are encrypted server-side.
+
 Configure CloudKit only after selecting the permanent HTTPS origin. [Setup and deployment](docs/deployment.md) documents schema, sign-in, backup/recovery and CSP. The app loads Apple's SDK only after lookup can render and only if CloudKit is configured. This trusted script can access origin-local remembered credentials.
 
 ## Small module map
@@ -49,7 +51,7 @@ Configure CloudKit only after selecting the permanent HTTPS origin. [Setup and d
 - `providers`: sponsored API or direct BYOK OpenAI fetch; CloudKit private Asset snapshots.
 - `ui`, `app`: Solid screens, navigation, update prompt, backup scheduling.
 
-No app authentication, telemetry, contact/photo model, vector search, generic repository or provider plugin system. Sponsored requests pass through our Worker to OpenAI; notebook storage remains local.
+No general app login, telemetry, contact/photo model, vector search, or generic repository/plugin system. Optional Google Drive connections use installation-scoped backend authorization. Sponsored requests pass through our Worker to OpenAI; notebook storage remains local.
 
 ## Data and recovery
 
@@ -57,7 +59,7 @@ Global format version is 1. Imports and local databases with unsupported version
 
 Exports contain contexts, households including trash, history, inbox text/transcripts/proposals/receipts, and preferences for resume and recognition languages. Keys, provider tokens, audio, transient attempts/errors, drafts and search state are excluded. Imported objects are sanitized through the same allowlist. Safety snapshots survive replacement. Recovery switches to a new dataset generation so old upload completions cannot acknowledge new data.
 
-Only one active device is supported. Immediate closure can interrupt recording or defer backup. A force-kill before the browser supplies audio cannot be made durable by the app. A clean recovery needs a verified cloud or JSON snapshot; missing raw audio and keys are stated explicitly.
+Google Drive supports independent backup histories for multiple installations, including browser and installed-PWA copies. Their notebooks do not synchronize; restoring another history explicitly copies its notebook. The existing CloudKit integration still supports only one active device. Immediate closure can interrupt recording or defer backup. A force-kill before the browser supplies audio cannot be made durable by the app. A clean recovery needs a verified cloud or JSON snapshot; missing raw audio and keys are stated explicitly.
 
 ## Private migration
 

@@ -57,6 +57,10 @@ export async function applyCapture(id: string, acknowledged = false, d: AhThatsW
       if (c.receipt) return c.receipt;
       assert(c.stage === 'proposed' && c.proposal, 'This capture is not ready to apply');
       const p = c.proposal;
+      assert(
+        !p.contextSuggestions.length,
+        'This older proposal suggests new contexts. Create them in Settings if wanted, then reprocess the capture.',
+      );
       assert(p.action === 'update' || p.action === 'create', 'Choose one household first');
       assert(p.household, 'Proposal has no household');
       let h = structuredClone(p.household);
@@ -77,16 +81,6 @@ export async function applyCapture(id: string, acknowledged = false, d: AhThatsW
         const ids = new Map(h.people.map((x) => [x.id, uuid()]));
         h.people = h.people.map((x) => ({ ...x, id: ids.get(x.id)! }));
       }
-      const mapping = new Map<string, string>();
-      for (const suggestion of p.contextSuggestions) {
-        const existing = (await d.contexts.toArray()).find(
-          (x) => x.name.toLocaleLowerCase() === suggestion.name.toLocaleLowerCase(),
-        );
-        const next = existing || { ...suggestion, id: uuid() };
-        if (!existing) await d.contexts.add(next);
-        mapping.set(suggestion.id, next.id);
-      }
-      h.contextIds = [...new Set(h.contextIds.map((x) => mapping.get(x) || x))];
       if (p.action === 'update') {
         const current = await d.households.get(h.id);
         h.people = h.people.map((x) =>

@@ -90,6 +90,7 @@ it('pins the sponsored request and ignores client-supplied keys, models, tools a
 
 it.each([
   null,
+  { ...input, mode: 'unsupported' },
   { ...input, source: '' },
   { ...input, source: 'a'.repeat(20001) },
   { ...input, candidates: Array(13).fill({}) },
@@ -97,6 +98,30 @@ it.each([
 ])('rejects invalid notebook data before inference', async (body) => {
   expect((await worker.fetch(generateRequest(body), env)).status).toBe(400);
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it('preserves the new-household choice and excludes matching data before inference', async () => {
+  fetchMock.mockResolvedValue(Response.json({ status: 'completed', output: [] }));
+  const response = await worker.fetch(
+    generateRequest({
+      ...input,
+      mode: 'new',
+      hints: { householdId: 'existing', contextId: 'choir' },
+      candidates: [{ id: 'existing', notes: 'Old facts' }],
+      nameIndex: [{ id: 'existing' }],
+    }),
+    env,
+  );
+  expect(response.status).toBe(200);
+  const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+  expect(JSON.parse(body.input)).toMatchObject({
+    mode: 'new',
+    hints: { contextId: 'choir' },
+    candidates: [],
+    nameIndex: [],
+  });
+  expect(JSON.parse(body.input).hints.householdId).toBeUndefined();
+  expect(body.instructions).toContain('explicitly chose a NEW household');
 });
 
 it('bounds actual request bytes even without a Content-Length header', async () => {

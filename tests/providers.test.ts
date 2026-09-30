@@ -46,6 +46,43 @@ const reply = (p: unknown) =>
       output: [{ content: [{ type: 'output_text', text: JSON.stringify(p) }] }],
     }),
   );
+it.each(['personal', 'sponsored'] as const)(
+  'builds independent new drafts without existing household facts in %s mode',
+  async (mode) => {
+    setAIMode(mode);
+    const b = fixtures(2);
+    const c = capture();
+    c.hints.contextId = b.contexts[0].id;
+    const result = {
+      action: 'create',
+      household: {
+        id: 'tmp:new',
+        people: [{ id: 'tmp:person', firstName: { value: 'Elena' } }],
+        contextIds: [],
+      },
+      candidateIds: [],
+      contextSuggestions: [],
+      reason: 'New household from the source',
+    };
+    fetchMock.mockImplementation(async () => reply(result));
+    expect((await generate(c, b.households, b.contexts, ['de'], 'new')).action).toBe('create');
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const input = mode === 'personal' ? JSON.parse(body.input) : body;
+    expect(input).toMatchObject({
+      mode: 'new',
+      source: c.text,
+      candidates: [],
+      nameIndex: [],
+      hints: { contextId: c.hints.contextId },
+    });
+    expect(input.hints.householdId).toBeUndefined();
+    expect(input.contexts).toEqual(b.contexts);
+    result.action = 'ambiguous';
+    await expect(generate(c, b.households, b.contexts, ['de'], 'new')).rejects.toThrow(
+      'new household draft',
+    );
+  },
+);
 it('requests strict output without provider storage and binds the supplied base version', async () => {
   const b = fixtures(2);
   const r = b.households[0];

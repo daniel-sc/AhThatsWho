@@ -125,7 +125,7 @@ export function CapturePanel(props: {
   return (
     <section class="capture-panel">
       <h1>A name. A small detail.</h1>
-      <p class="muted">No need to choose a household. Review before anything changes.</p>
+      <p class="muted">One household per note. Include everyone who belongs to that household.</p>
       <Show when={getAIMode() === 'personal' && !getKey()}>
         <div class="notice">
           <p>

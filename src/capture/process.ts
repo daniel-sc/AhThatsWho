@@ -4,7 +4,8 @@ import { db, dirty, getMeta } from '../data/db';
 import { assert } from '../domain/integrity';
 import { uuid, now } from '../domain/types';
 import { storeProposal } from './application';
-export async function processCapture(id: string) {
+import type { GenerationMode } from '../providers/openai-contract';
+export async function processCapture(id: string, mode: GenerationMode = 'auto') {
   const attempt = uuid();
   await db.transaction('rw', [db.inbox, db.meta], async () => {
     const c = await db.inbox.get(id);
@@ -47,7 +48,7 @@ export async function processCapture(id: string) {
       if (!accepted) return;
       c = (await db.inbox.get(id))!;
     }
-    const p = await api.generate(c, rows, contexts, languages);
+    const p = await api.generate(c, rows, contexts, languages, mode);
     await storeProposal(id, p, attempt);
   } catch (error) {
     await db.transaction('rw', [db.inbox, db.meta], async () => {

@@ -302,8 +302,15 @@ main[data-screen='home'] {
   align-items: center;
   padding: 4px 3px 8px;
   scrollbar-width: thin;
+  background:
+    linear-gradient(to right, var(--paper) 30%, transparent) left / 32px 100% local,
+    linear-gradient(to left, var(--paper) 30%, transparent) right / 32px 100% local,
+    linear-gradient(to right, #163bee26, transparent) left / 12px 100% scroll,
+    linear-gradient(to left, #163bee26, transparent) right / 12px 100% scroll;
+  background-repeat: no-repeat;
 }
 .filters button {
+  flex-shrink: 0;
   white-space: nowrap;
   border-radius: 6px;
   font-size: 0.9375rem;
@@ -320,15 +327,6 @@ main[data-screen='home'] {
 }
 .filters .selected:hover {
   background: var(--accent-hover);
-}
-.context-picker {
-  margin: 0;
-}
-.context-picker select {
-  border-radius: 6px;
-  margin: 0;
-  width: 115px;
-  background: var(--surface);
 }
 .lookup-toolbar {
   display: flex;

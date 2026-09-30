@@ -17,6 +17,7 @@ import {
   MAX_AUDIO_BYTES,
   TRANSCRIPTION_PROMPT,
   responseBody,
+  type GenerationMode,
 } from './openai-contract';
 export { PARSER_MODEL, TRANSCRIPTION_MODEL } from './openai-contract';
 export type AIMode = 'sponsored' | 'personal';
@@ -132,26 +133,28 @@ export async function generate(
   rows: HouseholdRecord[],
   contexts: Context[],
   languages: string[] = defaultRecognitionLanguages,
+  mode: GenerationMode = 'auto',
 ): Promise<Proposal> {
   const source =
     c.kind === 'audio' ? [c.text, c.transcript].filter(Boolean).join('\n') : c.transcript || c.text;
   assert(source && source.trim(), 'No source text. Transcribe or enter text first.');
   assert(source.length <= 20000, 'Capture is too long');
-  const candidates = retrieve(c, rows, contexts);
-  const index = rows
+  const candidates = mode === 'new' ? [] : retrieve(c, rows, contexts);
+  const index = (mode === 'new' ? [] : rows)
     .filter((r) => !r.deletedAt)
     .map((r) => ({ id: r.household.id, names: r.household.people.map(personName) }));
   const input = {
     source,
     expectedLanguages: languages,
-    hints: c.hints,
+    hints: mode === 'new' ? { contextId: c.hints.contextId } : c.hints,
     candidates,
     contexts,
     nameIndex: index.slice(0, 5000),
+    ...(mode === 'new' ? { mode } : {}),
   };
   const response = await request(
     'responses',
-    JSON.stringify(getAIMode() === 'sponsored' ? input : responseBody(input)),
+    JSON.stringify(getAIMode() === 'sponsored' ? input : responseBody(input, mode)),
     true,
   );
   assert(
@@ -171,28 +174,27 @@ export async function generate(
   const p = stripNull(JSON.parse(raw)) as Proposal;
   p.generatedAt = now();
   p.model = PARSER_MODEL;
-  p.contextSuggestions = (p.contextSuggestions || []).map((s) => ({ ...s, favorite: false }));
+  p.contextSuggestions = p.contextSuggestions || [];
   p.removals = [];
   assert(
     ['create', 'update', 'ambiguous', 'multiple'].includes(p.action),
     'Invalid action returned',
   );
   assert(
+    mode !== 'new' || p.action === 'create' || p.action === 'multiple',
+    'AI did not return a new household draft. Your previous proposal is kept; try again.',
+  );
+  assert(
     Array.isArray(p.candidateIds) && p.candidateIds.every((id) => index.some((r) => r.id === id)),
     'Unknown candidate ID returned',
   );
   assert(
-    p.contextSuggestions.every(
-      (s) => s.id.startsWith('tmp:') && s.name.trim() && s.name.length <= 200,
-    ),
-    'Invalid context suggestion',
+    Array.isArray(p.contextSuggestions) && p.contextSuggestions.length === 0,
+    'Create new contexts in Settings, then process this capture again.',
   );
   if (p.action === 'create' || p.action === 'update') {
     assert(p.household, 'Missing household');
-    const allowed = new Set([
-      ...contexts.map((x) => x.id),
-      ...p.contextSuggestions.map((x) => x.id),
-    ]);
+    const allowed = new Set(contexts.map((x) => x.id));
     validateHousehold(p.household, allowed);
     let current: HouseholdRecord | undefined;
     if (p.action === 'update') {
@@ -200,7 +202,10 @@ export async function generate(
       assert(current && current.household.id === p.household.id, 'Update target was not supplied');
       p.baseVersion = current.versionId;
       p.removals = removals(current.household, p.household);
-    } else assert(p.household.id.startsWith('tmp:'), 'New household ID must be temporary');
+    } else {
+      assert(!p.targetId, 'New household must not have an existing target');
+      assert(p.household.id.startsWith('tmp:'), 'New household ID must be temporary');
+    }
     assert(
       p.household.people.every(
         (x) => x.id.startsWith('tmp:') || current?.household.people.some((y) => y.id === x.id),

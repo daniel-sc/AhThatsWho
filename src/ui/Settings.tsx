@@ -587,14 +587,34 @@ export function Settings(props: {
           <InstallHelp installation={props.installation} />
         </div>
         <div class="settings-block">
+          <h2>Feedback</h2>
+          <p>
+            Something confusing or missing?{' '}
+            <a href="mailto:hello@ahthatswho.com?subject=AhThatsWho%20feedback">
+              Send feedback by email
+            </a>
+            .
+          </p>
+          <p>
+            For bug reports and discussion, you can also use{' '}
+            <a
+              href="https://github.com/daniel-sc/AhThatsWho/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub issues (opens in a new tab)
+            </a>
+            .
+          </p>
+        </div>
+        <div class="settings-block">
           <h2>About AhThatsWho</h2>
           <p>
             Names, in context. No analytics. Your notebook lives on this device, with optional
             private CloudKit backups.
           </p>
           <p>
-            AhThatsWho is open source under the MIT license. Explore the code, report a bug, or
-            suggest an improvement on{' '}
+            AhThatsWho is open source under the MIT license. Explore the code on{' '}
             <a
               href="https://github.com/daniel-sc/AhThatsWho"
               target="_blank"

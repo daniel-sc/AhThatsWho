@@ -32,6 +32,7 @@ export function Review(props: {
   const [showTargets, setShowTargets] = createSignal(false);
   const [sourceText, setSourceText] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
+  const [draftingNew, setDraftingNew] = createSignal(false);
   const [audio, setAudio] = createSignal('');
   let audioUrl = '';
   const c = () => props.capture;
@@ -39,6 +40,7 @@ export function Review(props: {
   const completed = () => ['applied', 'discarded'].includes(c().stage);
   const canReview = () => !completed() && sourceText() === undefined;
   const processing = () => busy() || !!c().attempt;
+  const suggestsContexts = () => !!proposal()?.contextSuggestions.length;
   const source = () => [c().text, c().transcript].filter(Boolean).join('\n');
   const current = () => props.rows.find((r) => r.household.id === proposal()?.targetId);
   const stale = () =>
@@ -82,6 +84,16 @@ export function Review(props: {
     );
     setShowTargets(false);
   };
+  async function draftNew() {
+    setDraftingNew(true);
+    try {
+      const { processCapture } = await import('../capture/process');
+      await processCapture(c().id, 'new');
+      setShowTargets(false);
+    } finally {
+      setDraftingNew(false);
+    }
+  }
   return (
     <Show
       when={editing()}
@@ -182,6 +194,12 @@ export function Review(props: {
           </Show>
           <Show when={proposal() && canReview()}>
             <p>{proposal()?.reason}</p>
+            <Show when={suggestsContexts()}>
+              <p class="notice" role="alert">
+                This older proposal suggests new contexts. Create them in Settings if wanted, then
+                reprocess this capture. New contexts are no longer created when applying a proposal.
+              </p>
+            </Show>
             <Show when={proposal()?.action === 'multiple'}>
               <p class="notice">
                 This mentions several households. Keep this capture and create separate captures to
@@ -246,7 +264,7 @@ export function Review(props: {
               <button onClick={() => setShowTargets(true)}>Search all households</button>
             </Show>
             <button disabled={processing()} onClick={() => choose()}>
-              Create new household
+              Create new manually
             </button>
             <Show when={showTargets()}>
               <button class="quiet" onClick={() => setShowTargets(false)}>
@@ -255,11 +273,14 @@ export function Review(props: {
             </Show>
           </Show>
           <Show when={canReview()}>
+            <Show when={draftingNew()}>
+              <p role="status">Creating a new household draft from your note…</p>
+            </Show>
             <div class="actions">
               <Show when={proposal()?.household && proposal()?.action !== 'multiple'}>
                 <button
                   class="primary"
-                  disabled={processing() || !!stale()}
+                  disabled={processing() || !!stale() || suggestsContexts()}
                   onClick={() =>
                     void act(async () => {
                       const receipt = await applyCapture(c().id, true);
@@ -270,10 +291,21 @@ export function Review(props: {
                   Apply proposal
                 </button>
                 <button
-                  disabled={processing() || !!stale()}
+                  disabled={processing() || !!stale() || suggestsContexts()}
                   onClick={() => setEditing(structuredClone(proposal()!))}
                 >
                   Edit proposal manually
+                </button>
+              </Show>
+              <Show
+                when={
+                  proposal() &&
+                  proposal()?.action !== 'multiple' &&
+                  (proposal()?.action !== 'create' || showTargets())
+                }
+              >
+                <button disabled={processing()} onClick={() => void act(draftNew)}>
+                  Draft as new household
                 </button>
               </Show>
               <button

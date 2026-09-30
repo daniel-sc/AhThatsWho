@@ -184,6 +184,18 @@ describe('capture application', () => {
     await expect(applyCapture(c.id, false, d)).rejects.toThrow('acknowledge');
     expect(await d.revisions.count()).toBe(0);
   });
+  it('keeps legacy AI context suggestions from silently creating contexts on apply', async () => {
+    const d = database();
+    const { c, r } = await capture(d);
+    const before = await d.contexts.toArray();
+    c.proposal!.contextSuggestions = [{ id: 'tmp:choir', name: 'Choir', favorite: false }];
+    c.proposal!.household!.contextIds = [...c.proposal!.household!.contextIds, 'tmp:choir'];
+    await saveCapture(c, d);
+    await expect(applyCapture(c.id, true, d)).rejects.toThrow('new contexts');
+    expect(await d.contexts.toArray()).toEqual(before);
+    expect(await d.households.get(r.household.id)).toEqual(r);
+    expect((await d.inbox.get(c.id))?.receipt).toBeUndefined();
+  });
   it('rejects late processing and invalidates a proposal when text changes', async () => {
     const d = database();
     const { c } = await capture(d);

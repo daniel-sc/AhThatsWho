@@ -69,6 +69,7 @@ function languages(values: unknown): string[] {
 
 function generationInput(value: unknown) {
   object(value);
+  assert(value.mode === undefined || value.mode === 'auto' || value.mode === 'new', 'Invalid mode');
   string(value.source, 20000);
   assert(value.source.trim(), 'Empty source');
   object(value.hints);
@@ -88,13 +89,16 @@ function generationInput(value: unknown) {
     entries.forEach(object);
   }
   // Only notebook data is accepted. OpenAI request options come from our code.
+  const mode = value.mode === 'new' ? 'new' : 'auto';
+  if (mode === 'new') delete hints.householdId;
   return {
     source: value.source,
     expectedLanguages: languages(value.expectedLanguages),
     hints,
-    candidates: value.candidates,
+    candidates: mode === 'new' ? [] : value.candidates,
     contexts: value.contexts,
-    nameIndex: value.nameIndex,
+    nameIndex: mode === 'new' ? [] : value.nameIndex,
+    ...(mode === 'new' ? { mode: 'new' as const } : {}),
   };
 }
 
@@ -175,7 +179,12 @@ export default {
       const body = await readBody(request, MAX_GENERATION_BYTES);
       const input = generationInput(JSON.parse(await body.text()));
       return json(
-        await openai(env.OPENAI_API_KEY, 'responses', JSON.stringify(responseBody(input)), true),
+        await openai(
+          env.OPENAI_API_KEY,
+          'responses',
+          JSON.stringify(responseBody(input, input.mode)),
+          true,
+        ),
       );
     } catch (error) {
       // Do not return provider error bodies or log keys, recordings or notebook data.

@@ -22,6 +22,7 @@ import { createSearchIndex, searchIndex } from '../domain/search';
 import { Icon } from '../ui/Icon';
 import { HouseholdView } from '../ui/HouseholdView';
 import { HouseholdList } from '../ui/HouseholdList';
+import { ContextFilters } from '../ui/ContextFilters';
 import { Editor } from '../ui/Editor';
 import { cloudStatus, startBackup } from './backup';
 import { Welcome } from '../ui/Welcome';
@@ -402,55 +403,14 @@ export default function App() {
                 <section>
                   <h1 class="sr-only">Your people.</h1>
                   <div class="search-results">
-                    <div class="filters">
-                      <button
-                        classList={{ selected: !ui().context }}
-                        aria-pressed={!ui().context}
-                        onClick={() => {
-                          setUI({ ...ui(), context: '', homeAnchor: undefined });
-                          persist();
-                        }}
-                      >
-                        All
-                      </button>
-                      <For each={contexts().filter((c) => c.favorite || c.id === ui().context)}>
-                        {(c) => (
-                          <button
-                            classList={{ selected: ui().context === c.id }}
-                            aria-pressed={ui().context === c.id}
-                            onClick={() => {
-                              setUI({ ...ui(), context: c.id, homeAnchor: undefined });
-                              persist();
-                            }}
-                          >
-                            {c.name}
-                          </button>
-                        )}
-                      </For>
-                      <Show when={contexts().some((c) => !c.favorite)}>
-                        <label class="context-picker">
-                          <span class="sr-only">Other contexts</span>
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              if (e.currentTarget.value) {
-                                setUI({
-                                  ...ui(),
-                                  context: e.currentTarget.value,
-                                  homeAnchor: undefined,
-                                });
-                                persist();
-                              }
-                            }}
-                          >
-                            <option value="">More…</option>
-                            <For each={contexts().filter((c) => !c.favorite)}>
-                              {(c) => <option value={c.id}>{c.name}</option>}
-                            </For>
-                          </select>
-                        </label>
-                      </Show>
-                    </div>
+                    <ContextFilters
+                      contexts={contexts()}
+                      selected={ui().context}
+                      select={(context) => {
+                        setUI({ ...ui(), context, homeAnchor: undefined });
+                        persist();
+                      }}
+                    />
                     <Show when={results().fallback}>
                       <p class="notice">
                         No matches in {contexts().find((c) => c.id === ui().context)?.name}. Showing

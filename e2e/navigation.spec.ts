@@ -1,4 +1,23 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+async function savedMeta(page: Page, key: string) {
+  return page.evaluate(async (key) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('ahthatswho');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const request = db.transaction('meta').objectStore('meta').get(key);
+        request.onsuccess = () => resolve(request.result?.value);
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
+  }, key);
+}
 
 test('named views override resume state, survive reload, and support Back/Forward', async ({
   page,
@@ -23,9 +42,12 @@ test('named views override resume state, survive reload, and support Back/Forwar
   await page.goto('/home');
   await expect(page.locator('main')).toHaveAttribute('data-screen', 'home');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect.poll(() => savedMeta(page, 'ui')).toMatchObject({ screen: 'settings' });
   await page.goto('/');
   await expect(page).toHaveURL(/\/settings$/);
   await page.getByLabel('Resume where I left off').uncheck();
+  await expect.poll(() => savedMeta(page, 'preferences')).toMatchObject({ resume: false });
   await page.goto('/');
   await expect(page).toHaveURL(/\/home$/);
   await page.goto('/settings');
@@ -206,6 +228,7 @@ test('launch URL resumes the saved scroll position in Settings', async ({ page }
   await page.evaluate(() => window.scrollTo(0, 900));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(800);
   const scroll = await page.evaluate(() => window.scrollY);
+  await expect.poll(() => savedMeta(page, 'ui')).toMatchObject({ screen: 'settings', scroll });
   await page.goto('/');
   await expect(page).toHaveURL(/\/settings$/);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(scroll, -1);

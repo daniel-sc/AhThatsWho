@@ -22,7 +22,7 @@ test('named views override resume state, survive reload, and support Back/Forwar
   await expect(page.getByRole('heading', { name: 'Trash', exact: true })).toBeVisible();
   await page.goto('/home');
   await expect(page.locator('main')).toHaveAttribute('data-screen', 'home');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.goto('/');
   await expect(page).toHaveURL(/\/settings$/);
   await page.getByLabel('Resume where I left off').uncheck();
@@ -36,7 +36,8 @@ test('household, editor, history and review links restore their local data', asy
   await page.goto('/households/new');
   await page.getByLabel('First name', { exact: true }).fill('Beatrice');
   await expect(page.getByText('Local draft saved · not applied')).toBeVisible();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByLabel('First name', { exact: true })).toHaveValue('Beatrice');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -108,7 +109,7 @@ test('browser Back cannot leave an active recording', async ({ page }) => {
 test('browser Back preserves an import preview until it is cancelled', async ({ page }) => {
   const { fixtures } = await import('../src/domain/fixtures');
   await page.goto('/home');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles({
     name: 'synthetic.json',
     mimeType: 'application/json',
@@ -157,11 +158,87 @@ test('navigation waits for the notebook to finish opening', async ({ page }) => 
   });
   await page.goto('/home');
   await expect(page.getByText('Opening your notebook…')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeDisabled();
+  await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Capture', exact: true })).toBeDisabled();
   await page.waitForFunction(() => 'finishOpening' in window);
   await page.evaluate(() => (window as unknown as { finishOpening: () => void }).finishOpening());
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+});
+
+test('separate Home history entries retain their own search and scroll', async ({ page }) => {
+  const { fixtures } = await import('../src/domain/fixtures');
+  await page.goto('/settings');
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'synthetic.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(fixtures(500))),
+  });
+  await page.getByRole('button', { name: 'Replace & use this dataset' }).click();
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('searchbox').fill('Example');
+  await page.evaluate(() => window.scrollTo(0, 2400));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(2000);
+  const firstScroll = await page.evaluate(() => window.scrollY);
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('searchbox').fill('Elena');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('searchbox')).toHaveValue('Elena');
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('searchbox')).toHaveValue('Example');
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(firstScroll, -2);
+  await page.reload();
+  await expect(page.getByRole('searchbox')).toHaveValue('Example');
+  await page.goForward();
+  await page.goForward();
+  await expect(page.getByRole('searchbox')).toHaveValue('Elena');
+});
+
+test('launch URL resumes the saved scroll position in Settings', async ({ page }) => {
+  await page.goto('/settings');
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 900));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(800);
+  const scroll = await page.evaluate(() => window.scrollY);
+  await page.goto('/');
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(scroll, -1);
+});
+
+test('Back clears a filter whose context was deleted in Settings', async ({ page }) => {
+  const { fixtures } = await import('../src/domain/fixtures');
+  await page.goto('/settings');
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'synthetic.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(fixtures(12))),
+  });
+  await page.getByRole('button', { name: 'Replace & use this dataset' }).click();
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.getByRole('button', { name: 'School', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page
+    .locator('.context-setting')
+    .filter({ has: page.getByLabel('Favorite School', { exact: true }) })
+    .getByRole('button', { name: 'Delete', exact: true })
+    .click();
+  await expect(page.getByLabel('Favorite School', { exact: true })).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'All', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('.household-row')).toHaveCount(12);
+  await page.getByRole('button', { name: 'Add household', exact: true }).click();
+  await page.getByLabel('First name', { exact: true }).fill('No deleted context');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });

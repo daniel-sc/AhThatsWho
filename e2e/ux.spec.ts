@@ -21,14 +21,14 @@ async function suggestion(page: Page) {
     },
   ];
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles({
     name: 'ux.json',
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(data)),
   });
   await page.getByRole('button', { name: 'Replace & use this dataset' }).click();
-  await page.getByRole('button', { name: /Inbox/ }).click();
+  await page.getByRole('link', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: /Change the memory cue/ }).click();
 }
 
@@ -45,7 +45,7 @@ test('edit an AI suggestion and apply in one save, then open the completed house
   await page.getByRole('button', { name: 'Save & apply' }).click();
   await expect(page.getByText('The names, together.')).toBeVisible();
   await expect(page.getByText('Indigo bicycle', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: /Inbox/ }).click();
+  await page.getByRole('link', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: 'Completed', exact: true }).click();
   await page.getByRole('button', { name: /Change the memory cue/ }).click();
   await expect(page.getByRole('heading', { name: 'Completed capture' })).toBeVisible();
@@ -116,7 +116,7 @@ test('lookup retains partial names, certainty, contexts and matching notes in co
   household.contextIds = ['school', 'garden'];
   household.notes = 'Teaches weaving at the community workshop.';
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles({
     name: 'name-cases.json',
     mimeType: 'application/json',

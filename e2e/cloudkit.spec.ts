@@ -17,7 +17,7 @@ test('CloudKit authentication failure reports the cause without a success messag
     };
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByText('CloudKit configuration', { exact: true }).click();
   await page.getByLabel('Website API token', { exact: true }).fill('synthetic-website-token');
   await page.getByRole('button', { name: 'Connect iCloud', exact: true }).click();

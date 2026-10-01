@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { fixtures } from '../src/domain/fixtures';
 async function seed(page: Page, count = 2) {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles({
     name: 'fixture.json',
     mimeType: 'application/json',
@@ -34,7 +34,7 @@ test('a recovered editor draft cannot overwrite a newer version from another tab
 });
 test('malformed and newer imports leave data intact', async ({ page }) => {
   await seed(page);
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   for (const input of [
     { ...fixtures(1), version: 999 },
     { ...fixtures(1), contexts: [] },
@@ -55,7 +55,7 @@ test('an ambiguous provider reply goes to target review and a stale proposal is 
   context,
 }) => {
   await seed(page);
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByLabel('AI payment').selectOption('personal');
   await page.getByLabel('API key', { exact: true }).fill('synthetic-test-key');
   await page.getByRole('button', { name: 'Save key', exact: true }).click();
@@ -115,6 +115,6 @@ test('microphone denial leaves text capture usable', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText('Permission denied');
   await page.getByLabel('Capture text').fill('A text fallback');
   await page.getByRole('button', { name: 'Save for later' }).click();
-  await page.getByRole('button', { name: /Inbox/ }).click();
+  await page.getByRole('link', { name: /Inbox/ }).click();
   await expect(page.getByRole('button', { name: /A text fallback/ })).toBeVisible();
 });

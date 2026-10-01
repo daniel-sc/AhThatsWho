@@ -54,7 +54,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
     });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('German', { exact: true })).toBeChecked();
   await page.getByLabel('English', { exact: true }).check();
   await expect(page.getByLabel('English', { exact: true })).toBeEnabled();
@@ -72,11 +72,11 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   expect(transcriptions).toBe(1);
   expect(proposals).toBe(1);
   await page.reload();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('German', { exact: true })).toBeChecked();
   await expect(page.getByLabel('English', { exact: true })).toBeChecked();
   await expect(page.getByLabel('AI payment')).toHaveValue('sponsored');
-  await page.getByRole('button', { name: /Inbox/ }).click();
+  await page.getByRole('link', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Play saved recording' }).click();
   await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
@@ -123,7 +123,7 @@ test('backgrounding a recording keeps it in Inbox without starting processing', 
   });
   await expect(page.getByText('Audio saved on this device.', { exact: false })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: /Inbox/ }).click();
+  await page.getByRole('link', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: /Saved audio recording/ }).click();
   await page.getByRole('button', { name: 'Play saved recording' }).click();
   await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);

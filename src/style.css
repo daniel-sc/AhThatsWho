@@ -39,12 +39,14 @@ body {
   margin: 0;
 }
 button,
+.nav-link,
 input,
 select,
 textarea {
   font: inherit;
 }
-button {
+button,
+.nav-link {
   cursor: pointer;
   background: var(--surface);
   border: 0;
@@ -55,10 +57,12 @@ button {
   font-weight: 600;
   line-height: 1.35;
 }
-button:hover {
+button:hover,
+.nav-link:hover {
   background: var(--surface-hover);
 }
-button:disabled {
+button:disabled,
+.nav-link[aria-disabled='true'] {
   cursor: default;
   opacity: 0.55;
 }
@@ -468,7 +472,7 @@ main[data-screen='home'] {
   border-top: 2px solid var(--accent);
   z-index: 10;
 }
-.bottom-nav button {
+.bottom-nav :is(button, a) {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -480,10 +484,10 @@ main[data-screen='home'] {
   border-radius: 6px;
   min-height: 62px;
 }
-.bottom-nav button:hover {
+.bottom-nav :is(button, a):hover {
   background: var(--canvas);
 }
-.bottom-nav button > span {
+.bottom-nav :is(button, a) > span {
   position: relative;
   display: grid;
   place-items: center;
@@ -1152,4 +1156,8 @@ mark {
     animation: none !important;
     transition: none !important;
   }
+}
+
+.nav-link {
+  text-decoration: none;
 }

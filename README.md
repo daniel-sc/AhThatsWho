@@ -79,3 +79,9 @@ last view when enabled. Browser Back/Forward restores view state, including sear
 and scroll position. Recording and imports block in-app history navigation.
 Household and capture links require the corresponding notebook data on that device;
 missing records return to Home or Inbox with an explanation. Views remain client-rendered.
+
+Route components are registered in `src/app/routes.ts` and rendered through the
+shared layout in `src/app/App.tsx`. Search/filter state belongs to each router
+history entry; notebook resume is persisted separately. Solid Router restores
+Back/Forward scroll positions. Custom restoration is limited to document resume
+and the virtualized list's explicit return-to-results anchor.

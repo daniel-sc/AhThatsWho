@@ -25,8 +25,8 @@ The flow redirects through our authorization endpoint; it does not load Google's
 
 ## GCP project and OAuth client
 
-1. Create a Google Cloud project with display name **ahthatswho** (project ID `ahthatswho`, or an available unique suffix if that global ID is unavailable). Use an authorized user or a parent organization/folder where the provisioning identity can create projects. Do not put this app's OAuth client into an unrelated project.
-2. Enable `drive.googleapis.com` in the new project.
+1. Use the existing **AhThatsWho** project: ID `ahthatswho`, project number `672364502714`.
+2. `drive.googleapis.com` is enabled in this project (verified 1 October 2026).
 3. Configure Google Auth Platform branding, audience and contact information for AhThatsWho. Use an authorized support email; add the app homepage and privacy policy when required by Google.
 4. Create an OAuth client of type **Web application** with the exact redirect URIs above. Google Auth Platform's web OAuth client is distinct from IAM workforce OAuth clients and IAP OAuth clients; those are not substitutes.
 5. Request only `https://www.googleapis.com/auth/drive.appdata`, `openid`, and `email`. The Drive permission is non-sensitive. Publishing/branding requirements still apply. In Testing, add explicit test users; Drive refresh tokens then expire after seven days. Switch to In production for persistent real-user connections when Google's required configuration is complete.
@@ -66,8 +66,14 @@ Before promotion, verify a real Google connection, upload/download checksum, cle
 - [Pre-generated file IDs for safe upload retries](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/generateIds)
 - [Creating Google Workspace OAuth credentials](https://developers.google.com/workspace/guides/create-credentials)
 
-## Provisioning result on 30 September 2026
+## Provisioning result on 1 October 2026
 
-The preview Worker, D1 database, both migrations, and preview-only `BACKUP_ENCRYPTION_KEY` were provisioned. Google OAuth is not configured yet: `gcloud projects create ahthatswho --name=ahthatswho` was rejected because the only authenticated identity is `opencode-workstation-sa@playground-incubator.iam.gserviceaccount.com`, and Google does not allow that service account to create a parentless project. No accessible organization was returned. A Google user login with project-creation permission, or an authorized organization/folder parent for the service account, is needed before the project, Drive API and web OAuth client can be created. No project or OAuth client was created in a substitute project.
+The preview Worker, D1 database, both migrations, and preview-only `BACKUP_ENCRYPTION_KEY` were provisioned. The user created **AhThatsWho** (`ahthatswho`, number `672364502714`) and granted Editor to `opencode-workstation-sa@playground-incubator.iam.gserviceaccount.com`. Direct project access succeeded, and `gcloud services enable drive.googleapis.com --project=ahthatswho` completed successfully. Project listing initially lagged behind direct access.
+
+The remaining provisioning step is Google Auth Platform registration and creation of a **Web application** OAuth client. Google's documented client-creation flow uses the console; this environment has service-account CLI access but no authenticated console browser. Additional IAM roles are not the missing requirement. Do not substitute an IAM workforce or IAP OAuth client.
+
+Open [Google Auth Platform for this project](https://console.cloud.google.com/auth/overview?project=ahthatswho). Register the app as **AhThatsWho**, using the project owner's support/contact email and an **External** audience. Configure the three scopes listed above. For initial Testing, add the Google accounts that will test backups; Testing refresh tokens expire after seven days. Use **In production** when the required setup is complete to avoid that Testing-mode expiry.
+
+Under [Clients](https://console.cloud.google.com/auth/clients?project=ahthatswho), create a **Web application** named **AhThatsWho Drive preview**, with both exact redirect URIs listed above and no JavaScript origins. Download the credential JSON when creating it: Google only exposes a new client secret at creation. Save it outside source control, for example `/tmp/ahthatswho-oauth-client.json`, or in the ignored `private/` directory. Do not paste the secret into chat. Once available locally, install its `web.client_id` and `web.client_secret` as preview Worker secrets and upload a new preview version so the branch alias receives those bindings. Preserve the existing `BACKUP_ENCRYPTION_KEY`.
 
 The deployed status endpoint deliberately reports unconfigured until the Google client ID and secret are installed. Real Google consent, refresh, upload and recovery remain unverified; the branch includes synthetic backend and browser tests for these flows. The privacy page for Google Auth Platform setup is `/privacy.html` on the intended app origin.

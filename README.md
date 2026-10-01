@@ -83,8 +83,12 @@ Household and capture links require the corresponding notebook data on that devi
 missing records return to Home or Inbox with an explanation. Views remain client-rendered.
 
 Route components are registered in `src/app/routes.ts` and rendered through the
-shared layout in `src/app/App.tsx`. Search/filter state belongs to each router
-history entry; notebook resume is persisted separately. Solid Router restores
+shared layout in `src/app/App.tsx`. Each view in `src/app/pages/` is independently
+lazy-loaded; editor code is shared only by the editor and review views. Keep
+view-only dependencies in those modules or their UI components so they stay out
+of the home/list load. The service worker still precaches all chunks for offline
+navigation, without executing unvisited views. Search/filter state belongs to
+each router history entry; notebook resume is persisted separately. Solid Router restores
 Back/Forward scroll positions. Custom restoration is limited to document resume
 and the virtualized list's explicit return-to-results anchor.
 
@@ -92,8 +96,9 @@ and the virtualized list's explicit return-to-results anchor.
 
 SolidStart v2 owns the browser entry and build-time HTML rendering. `/privacy` is
 prerendered; `/` produces only a generic launch shell (including a privacy link),
-which Cloudflare also serves for notebook deep links. Notebook layouts and pages
-use lazy `clientOnly` imports: IndexedDB, recording, and local notebook contents
+which Cloudflare also serves for notebook deep links. The notebook layout uses a
+lazy `clientOnly` import and its route views use Solid’s `lazy` within that boundary.
+IndexedDB, recording, and local notebook contents
 are never opened by the prerenderer. `src/app.tsx` defines the public/privacy and
 notebook layout boundary; the existing notebook URLs remain unchanged.
 

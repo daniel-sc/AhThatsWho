@@ -180,12 +180,17 @@ test('separate Home history entries retain their own search and scroll', async (
     buffer: Buffer.from(JSON.stringify(fixtures(500))),
   });
   await page.getByRole('button', { name: 'Replace & use this dataset' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Data replaced.' })).toBeVisible();
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await page.getByRole('searchbox').fill('Example');
   await page.evaluate(() => window.scrollTo(0, 2400));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(2000);
   const firstScroll = await page.evaluate(() => window.scrollY);
-  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  // Navigate without Playwright scrolling the offscreen header link into view;
+  // that would replace the scroll position this test is meant to restore.
+  await page.getByRole('link', { name: 'Settings', exact: true }).evaluate((link) => {
+    (link as HTMLAnchorElement).click();
+  });
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await page.getByRole('searchbox').fill('Elena');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();

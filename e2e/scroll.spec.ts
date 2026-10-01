@@ -21,6 +21,10 @@ test('large list restores visible household after detail and reload', async ({ p
       )!.dataset.household!,
   );
   await page.locator(`[data-household="${id}"]`).click();
+  await page.goBack();
+  await expect(page.locator(`[data-household="${id}"]`)).toBeInViewport();
+  await page.goForward();
+  await expect(page).toHaveURL(new RegExp(`/households/${id}$`));
   await page.getByRole('button', { name: 'Back to results', exact: false }).click();
   await expect(page.locator(`[data-household="${id}"]`)).toBeInViewport();
   await page.waitForTimeout(200);

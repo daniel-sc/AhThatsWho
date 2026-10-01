@@ -68,3 +68,14 @@ The app is **AhThatsWho**. The registered Apple container remains `iCloud.me.cbf
 ## License
 
 AhThatsWho is open source under the [MIT license](LICENSE). Bundled fonts retain their [SIL Open Font Licenses](src/assets/fonts/); third-party dependencies retain their respective licenses.
+
+## View URLs
+
+Views have bookmarkable paths: `/home`, `/settings`, `/capture`, `/inbox`, `/trash`,
+`/households/new`, `/households/:id`, `/households/:id/edit`,
+`/households/:id/history`, and `/inbox/:captureId` for review. Explicit paths take
+precedence over the resume preference; `/` remains the launch URL and resumes the
+last view when enabled. Browser Back/Forward restores view state, including search
+and scroll position. Recording and imports block in-app history navigation.
+Household and capture links require the corresponding notebook data on that device;
+missing records return to Home or Inbox with an explanation. Views remain client-rendered.

@@ -28,33 +28,12 @@ import { cloudStatus, startBackup } from './backup';
 import { Welcome } from '../ui/Welcome';
 import { createInstallation } from '../ui/InstallHelp';
 import { isFreshNotebook } from '../data/onboarding';
+import { initial, parseRoute, routePath, type Screen, type UI } from './routes';
 const Settings = lazy(() => import('../ui/Settings').then((m) => ({ default: m.Settings })));
 const CapturePanel = lazy(() =>
   import('../ui/CapturePanel').then((m) => ({ default: m.CapturePanel })),
 );
 const Review = lazy(() => import('../ui/Review').then((m) => ({ default: m.Review })));
-type Screen =
-  | 'home'
-  | 'household'
-  | 'editor'
-  | 'history'
-  | 'trash'
-  | 'capture'
-  | 'inbox'
-  | 'review'
-  | 'settings';
-type UI = {
-  screen: Screen;
-  query: string;
-  context: string;
-  target?: string;
-  capture?: string;
-  scroll: number;
-  homeScroll: number;
-  homeAnchor?: { id: string; top: number };
-  previous?: Screen;
-};
-const initial: UI = { screen: 'home', query: '', context: '', scroll: 0, homeScroll: 0 };
 export default function App() {
   const [ui, setUI] = createSignal<UI>(initial);
   const [rows, setRows] = createSignal<HouseholdRecord[]>([]);
@@ -135,6 +114,14 @@ export default function App() {
     );
     return row ? { id: row.dataset.household!, top: row.getBoundingClientRect().top } : undefined;
   }
+  let historyIndex = 0;
+  let restoringHistory = false;
+  let revertingHistory = false;
+  let navigationEpoch = 0;
+  const historyState = (state: UI) => ({ notebook: true, index: historyIndex, ui: state });
+  function replaceHistory(state = ui()) {
+    window.history.replaceState(historyState(state), '', routePath(state));
+  }
   function persist() {
     if (!ready()) return;
     const state = {
@@ -142,12 +129,14 @@ export default function App() {
       scroll: window.scrollY,
       ...(ui().screen === 'home' ? { homeAnchor: anchor() } : {}),
     };
+    if (!restoringHistory) replaceHistory(state);
     persistWrites = persistWrites
       .then(() => setMeta('ui', state))
       .then(() => {})
       .catch(report);
   }
   function navigate(screen: Screen, patch: Partial<UI> = {}, scroll = 0) {
+    if (!ready() || restoringHistory) return;
     if (recording() || importing()) {
       setNotice(
         recording()
@@ -156,22 +145,29 @@ export default function App() {
       );
       return;
     }
+    navigationEpoch++;
+    persist();
     if (ui().screen === 'home')
       setUI({ ...ui(), homeScroll: window.scrollY, homeAnchor: anchor() });
-    setUI({ ...ui(), screen, scroll, ...patch });
+    const next = { ...ui(), screen, scroll, ...patch };
+    if (routePath(next) !== routePath(ui())) {
+      historyIndex++;
+      window.history.pushState(historyState(next), '', routePath(next));
+    }
+    setUI(next);
     setError('');
     setNotice('');
     window.scrollTo(0, scroll);
     persist();
   }
-  const home = () => {
-    if (recording() || importing()) return;
-    setUI({ ...initial });
-    setError('');
-    setNotice('');
-    window.scrollTo(0, 0);
-    persist();
-  };
+  const home = () =>
+    navigate('home', {
+      ...initial,
+      target: undefined,
+      capture: undefined,
+      previous: undefined,
+      homeAnchor: undefined,
+    });
   function openHousehold(r: HouseholdRecord) {
     navigate('household', { target: r.household.id });
     void db.households
@@ -222,6 +218,110 @@ export default function App() {
       report(e);
     }
   }
+  async function prepareView(state: UI): Promise<UI> {
+    let restored = { ...initial, ...state };
+    if (!parseRoute(routePath(restored))) restored = { ...initial };
+    if (['household', 'editor', 'history'].includes(restored.screen)) {
+      const record = rows().find((r) => r.household.id === restored.target && !r.deletedAt);
+      if (record) {
+        if (restored.screen === 'editor')
+          setEdit({ h: structuredClone(record.household), version: record.versionId });
+        if (restored.screen === 'history')
+          setRevisions(
+            await db.revisions
+              .where('record.household.id')
+              .equals(record.household.id)
+              .reverse()
+              .sortBy('archivedAt'),
+          );
+      } else if (restored.screen === 'editor' && !restored.target) {
+        const draft = await getMeta<{ household: Household; baseVersion?: string } | undefined>(
+          'draft:household:new',
+          undefined,
+        );
+        setEdit(
+          draft
+            ? { h: draft.household, version: draft.baseVersion }
+            : {
+                h: { ...emptyHousehold(), people: [{ id: crypto.randomUUID() }] },
+              },
+        );
+      } else {
+        restored = { ...initial };
+        setNotice('This household is not available on this device.');
+      }
+    }
+    if (restored.screen === 'review' && !inbox().some((c) => c.id === restored.capture)) {
+      restored = { ...initial, screen: 'inbox' };
+      setNotice('This capture is not available on this device.');
+    }
+    if (restored.context && !contexts().some((c) => c.id === restored.context))
+      restored = { ...restored, context: '', homeAnchor: undefined };
+    if (restored.screen === 'capture')
+      captureHints = {
+        householdId: restored.previous === 'household' ? restored.target : undefined,
+        contextId: restored.context || undefined,
+      };
+    return restored;
+  }
+  const popstate = async () => {
+    const entry = window.history.state;
+    if (revertingHistory && entry?.index === historyIndex) {
+      revertingHistory = false;
+      restoringHistory = false;
+      return;
+    }
+    if (recording() || importing()) {
+      setNotice(
+        recording()
+          ? 'Stop the recording before navigating.'
+          : 'Finish or cancel the import before navigating.',
+      );
+      if (entry?.notebook && entry.index !== historyIndex) {
+        revertingHistory = true;
+        restoringHistory = true;
+        window.history.go(historyIndex - entry.index);
+      }
+      return;
+    }
+    const epoch = ++navigationEpoch;
+    restoringHistory = true;
+    setError('');
+    setNotice('');
+    try {
+      const route = parseRoute(location.pathname) || { screen: 'home' as const };
+      const restored = await prepareView(entry?.notebook ? entry.ui : { ...initial, ...route });
+      if (disposed || epoch !== navigationEpoch) return;
+      historyIndex = entry?.notebook ? entry.index : 0;
+      setUI(restored);
+      replaceHistory(restored);
+      requestAnimationFrame(() => {
+        if (epoch !== navigationEpoch || disposed) return;
+        window.scrollTo(0, restored.scroll);
+        persist();
+      });
+    } catch (e) {
+      report(e);
+      replaceHistory();
+    } finally {
+      if (epoch === navigationEpoch) restoringHistory = false;
+    }
+  };
+  const previousScrollRestoration = window.history.scrollRestoration;
+  window.history.scrollRestoration = 'manual';
+  const beforeUnload = (event: BeforeUnloadEvent) => {
+    if (recording() || importing()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  };
+  window.addEventListener('beforeunload', beforeUnload);
+  window.addEventListener('popstate', popstate);
+  onCleanup(() => {
+    window.removeEventListener('beforeunload', beforeUnload);
+    window.removeEventListener('popstate', popstate);
+    window.history.scrollRestoration = previousScrollRestoration;
+  });
   onMount(async () => {
     try {
       await db.open();
@@ -238,41 +338,23 @@ export default function App() {
       setRows(households);
       setContexts(ctx);
       setInbox(items);
-      let restored = preferences.resume ? saved : initial;
-      if (
-        ![
-          'home',
-          'household',
-          'editor',
-          'history',
-          'trash',
-          'capture',
-          'inbox',
-          'review',
-          'settings',
-        ].includes(restored.screen)
-      )
-        restored = initial;
-      if (['household', 'editor', 'history'].includes(restored.screen)) {
-        const r = households.find((r) => r.household.id === restored.target && !r.deletedAt);
-        if (r) {
-          if (restored.screen === 'editor') setEdit({ h: r.household, version: r.versionId });
-          if (restored.screen === 'history') restored = { ...restored, screen: 'household' };
-        } else if (restored.screen === 'editor') {
-          const draft = await getMeta<{ household: Household; baseVersion?: string } | undefined>(
-            'draft:household:new',
-            undefined,
-          );
-          if (draft) setEdit({ h: draft.household, version: draft.baseVersion });
-          else restored = { ...restored, screen: 'home' };
-        } else restored = { ...restored, screen: 'home' };
-      }
-      if (restored.screen === 'review' && !items.some((c) => c.id === restored.capture))
-        restored = { ...restored, screen: 'inbox' };
-      if (restored.context && !ctx.some((c) => c.id === restored.context))
-        restored = { ...restored, context: '', homeAnchor: undefined };
+      const route = parseRoute(location.pathname);
+      const entry = window.history.state;
+      const sameEntry = entry?.notebook && routePath(entry.ui) === routePath(route || initial);
+      const restored = await prepareView(
+        sameEntry
+          ? entry.ui
+          : route
+            ? { ...initial, ...route }
+            : location.pathname === '/' && preferences.resume
+              ? saved
+              : initial,
+      );
+      historyIndex = sameEntry ? entry.index : 0;
+      if (!route && location.pathname !== '/') setNotice('This page does not exist. Showing Home.');
       setUI(restored);
       setReady(true);
+      replaceHistory(restored);
       requestAnimationFrame(() => window.scrollTo(0, restored.scroll || 0));
       const subscriptions = [
         liveQuery(() => isFreshNotebook()).subscribe({ next: setFresh, error: report }),
@@ -740,6 +822,7 @@ export default function App() {
                 replaced={() => {
                   setEdit(undefined);
                   setUI({ ...initial, screen: 'settings' });
+                  persist();
                   setNotice('Data restored. Local audio is not included in backups.');
                 }}
               />

@@ -8,5 +8,10 @@
   Cache-Control: no-cache
 /sw.js
   Cache-Control: no-cache
-/assets/*
+/_build/assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+/privacy
+  Cache-Control: no-cache
+/privacy/
+  Cache-Control: no-cache

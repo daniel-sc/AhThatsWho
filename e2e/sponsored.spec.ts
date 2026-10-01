@@ -52,11 +52,11 @@ test('public sponsorship preserves failed notes and uses a personal key only aft
   await page.reload();
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: /Inbox/ })
+    .getByRole('link', { name: /Inbox/ })
     .click();
   await page.getByRole('button', { name: /Avery from pottery/ }).click();
   await expect(page.getByRole('alert').first()).toContainText('Your source is saved');
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('AI payment')).toHaveValue('sponsored');
   await page.getByLabel('AI payment').selectOption('personal');
   await page.getByLabel('API key', { exact: true }).fill('synthetic-personal-key');
@@ -67,7 +67,7 @@ test('public sponsorship preserves failed notes and uses a personal key only aft
   await page.getByLabel('AI payment').selectOption('sponsored');
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: /Inbox/ })
+    .getByRole('link', { name: /Inbox/ })
     .click();
   await page.getByRole('button', { name: /Avery from pottery/ }).click();
   await page.getByRole('button', { name: 'Process with OpenAI', exact: true }).click();
@@ -76,14 +76,14 @@ test('public sponsorship preserves failed notes and uses a personal key only aft
   await expect(page.getByRole('button', { name: 'Process with OpenAI', exact: true })).toBeEnabled();
   await expect(page.getByRole('alert').first()).toContainText('Sponsored AI has reached');
   expect(personalCalls).toBe(0);
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.getByLabel('AI payment').selectOption('personal');
   await page.reload();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByLabel('AI payment')).toHaveValue('personal');
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('button', { name: /Inbox/ })
+    .getByRole('link', { name: /Inbox/ })
     .click();
   await page.getByRole('button', { name: /Avery from pottery/ }).click();
   await page.getByRole('button', { name: 'Process with OpenAI', exact: true }).click();

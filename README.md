@@ -70,3 +70,48 @@ The app is **AhThatsWho**. The registered Apple container remains `iCloud.me.cbf
 ## License
 
 AhThatsWho is open source under the [MIT license](LICENSE). Bundled fonts retain their [SIL Open Font Licenses](src/assets/fonts/); third-party dependencies retain their respective licenses.
+
+## View URLs
+
+Solid Router manages navigation and browser history. Views have bookmarkable paths: `/home`, `/settings`, `/capture`, `/inbox`, `/trash`,
+`/households/new`, `/households/:id`, `/households/:id/edit`,
+`/households/:id/history`, and `/inbox/:captureId` for review. Explicit paths take
+precedence over the resume preference; `/` remains the launch URL and resumes the
+last view when enabled. Browser Back/Forward restores view state, including search
+and scroll position. Recording and imports block in-app history navigation.
+Household and capture links require the corresponding notebook data on that device;
+missing records return to Home or Inbox with an explanation. Views remain client-rendered.
+
+Route components are registered in `src/app/routes.ts` and rendered through the
+shared layout in `src/app/App.tsx`. Search/filter state belongs to each router
+history entry; notebook resume is persisted separately. Solid Router restores
+Back/Forward scroll positions. Custom restoration is limited to document resume
+and the virtualized list's explicit return-to-results anchor.
+
+## Static rendering with SolidStart
+
+SolidStart v2 owns the browser entry and build-time HTML rendering. `/privacy` is
+prerendered; `/` produces only a generic launch shell (including a privacy link),
+which Cloudflare also serves for notebook deep links. Notebook layouts and pages
+use lazy `clientOnly` imports: IndexedDB, recording, and local notebook contents
+are never opened by the prerenderer. `src/app.tsx` defines the public/privacy and
+notebook layout boundary; the existing notebook URLs remain unchanged.
+
+`npm run build` uses Nitro's static preset, then `scripts/static-build.ts` copies
+only `.output/public` into the existing `dist` deployment directory. No generated
+SolidStart server is deployed. The existing `src/worker.ts` still handles `/api/*`.
+The final build step hashes Solid's inline hydration scripts into the CSP and
+regenerates the offline precache after the HTML files exist. The service worker
+serves the cached privacy document directly instead of falling back to the app shell.
+
+`npm run dev` uses SolidStart's development server; `npm run preview` serves the
+built static files through Wrangler, matching production headers and routing.
+The test runner has a separate `vitest.config.ts` so unit tests don't start the
+prerender/deployment plugins. SolidStart v2 requires Vite 8+ and Node 24+; the Nitro
+v3 beta dependency is pinned to the version validated for this build.
+
+For Google OAuth branding, use `https://ahthatswho.com/privacy/` only after this
+branch has been deployed to production. Verify the returned HTML contains the
+policy with JavaScript disabled before retrying Google's verification. The policy
+also documents optional Drive backup planned in the separate backup branch; this
+migration does not enable that integration.

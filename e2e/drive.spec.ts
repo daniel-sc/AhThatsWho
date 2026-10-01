@@ -130,7 +130,7 @@ async function driveMock(page: Page, separateBrowser = false) {
   };
 }
 async function openSettings(page: Page) {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
 }
 async function connect(page: Page) {
   await page.goto('/');

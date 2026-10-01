@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { fixtures } from '../src/domain/fixtures';
 async function settings(page: Page) {
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
 }
 async function importData(page: Page, count = 12) {
@@ -73,7 +73,7 @@ test('capture survives reload, manual proposal applies once', async ({ page }) =
   await page.getByRole('button', { name: 'Save for later' }).click();
   await expect(page.getByRole('heading', { name: 'Your inbox' })).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: /Inbox/ }).click();
+  await page.getByRole('link', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Create new manually' }).click();
   await page.getByLabel('First name', { exact: true }).fill('Beatrice');

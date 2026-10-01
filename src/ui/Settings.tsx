@@ -621,9 +621,7 @@ export function Settings(props: {
         <div class="settings-block">
           <h2>About AhThatsWho</h2>
           <p>
-            <a href="/privacy.html" target="_blank" rel="noopener noreferrer">
-              Privacy and backup data
-            </a>
+            <a href="/privacy">Privacy policy</a>
           </p>
           <p>
             Names, in context. No analytics. Your notebook lives on this device, with optional

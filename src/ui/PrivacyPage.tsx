@@ -1,16 +1,19 @@
-<!doctype html>
-<html lang="en">
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Privacy · AhThatsWho</title>
-  <body>
-    <main>
+import { Title } from '@solidjs/meta';
+export function PrivacyPage() {
+  return (
+    <main class="privacy-page">
+      <Title>Privacy · AhThatsWho</Title>
       <h1>AhThatsWho privacy</h1>
+      <p>Last updated: 1 October 2026</p>
       <p>
         AhThatsWho is a personal name notebook. You can use its manual features without an account.
         Your notebook is saved in this browser or installed app. There is no analytics tracking.
       </p>
       <h2>Optional Google Drive backup</h2>
+      <p>
+        Google Drive backup is being introduced and is available only in builds where it is enabled.
+        The following explains how it works when you choose to connect it.
+      </p>
       <p>
         If you connect Google Drive, we request access only to AhThatsWho's hidden app-data storage,
         together with your Google account identifier and email address to identify and display the
@@ -56,6 +59,14 @@
         If enabled, the existing iCloud integration stores snapshots in your private CloudKit
         database. Apple handles sign-in. The Google Drive connection is independent of iCloud.
       </p>
+      <h2>Service providers and use of Google data</h2>
+      <p>
+        Cloudflare hosts our app and backend. Google stores optional Drive backups, Apple stores
+        optional iCloud backups, and OpenAI processes AI requests you initiate. We use Google
+        account information and Drive access only to provide the backup features described here. We
+        do not sell Google user data or use it for advertising. Connecting Drive does not send your
+        backups to OpenAI; AI processing requires a separate action in the app.
+      </p>
       <h2>Your choices and contact</h2>
       <p>
         You can export your notebook, stop cloud backup, revoke provider access, or remove local app
@@ -63,7 +74,9 @@
         removing server-side connection information, email
         <a href="mailto:hello@ahthatswho.com">hello@ahthatswho.com</a>.
       </p>
-      <p><a href="/">Return to AhThatsWho</a></p>
+      <p>
+        <a href="/">Return to AhThatsWho</a>
+      </p>
     </main>
-  </body>
-</html>
+  );
+}

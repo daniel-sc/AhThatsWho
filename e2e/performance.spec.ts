@@ -4,7 +4,7 @@ test('synthetic 500 / 5000 measurements and phone-sized layout', async ({ page }
   test.setTimeout(120000);
   for (const count of [500, 5000]) {
     await page.goto('/');
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('link', { name: 'Settings', exact: true }).click();
     await page.locator('input[type=file]').setInputFiles({
       name: 'synthetic.json',
       mimeType: 'application/json',

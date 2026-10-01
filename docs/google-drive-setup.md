@@ -6,7 +6,7 @@ Google Drive backup uses an optional storage connection, not an AhThatsWho signu
 
 Branch: `feat/google-drive-backups`.
 
-The dedicated preview Worker is `ahthatswho-drive-preview`. Its database is `ahthatswho-backups-preview` (`810f5185-7f34-4f15-97cf-776d695d7a0f`). Production Worker bindings, secrets and notebook data are not reused. Preview origins have separate namespaces in D1 and Drive, even if the same OAuth client is used. Use synthetic notebooks on previews.
+The dedicated preview Worker is `ahthatswho-drive-preview`. Its database is `ahthatswho-backups-preview` (`810f5185-7f34-4f15-97cf-776d695d7a0f`). Production Worker bindings, secrets and notebook data are not reused. The preview and production Workers use distinct OAuth clients, separate D1 databases, and separate encryption keys. Preview origins also have separate namespaces in D1 and Drive. Use synthetic notebooks on previews.
 
 The stable branch alias is:
 
@@ -16,7 +16,7 @@ The base preview address is:
 
 `https://ahthatswho-drive-preview.aged-bread-195a.workers.dev`
 
-Configure these exact OAuth redirect URIs:
+The test OAuth client is configured with these exact redirect URIs:
 
 - `https://branch-1670742325881135-ahthatswho-drive-preview.aged-bread-195a.workers.dev/api/backup/callback`
 - `https://ahthatswho-drive-preview.aged-bread-195a.workers.dev/api/backup/callback`
@@ -25,7 +25,7 @@ The flow redirects through our authorization endpoint; it does not load Google's
 
 ## GCP project and OAuth client
 
-1. Use the existing **AhThatsWho** project: ID `ahthatswho`, project number `672364502714`.
+1. The supplied production and test clients both belong to **AhThatsWho**: ID `ahthatswho`, project number `672364502714`. Google publishing status and branding are project-wide, so these clients share that status. Separate clients do not provide separate GCP projects; Google's OAuth policy calls for separate projects for deployment tiers.
 2. `drive.googleapis.com` is enabled in this project (verified 1 October 2026).
 3. Configure Google Auth Platform branding, audience and contact information for AhThatsWho. Use an authorized support email; add the app homepage and privacy policy when required by Google.
 4. Create an OAuth client of type **Web application** with the exact redirect URIs above. Google Auth Platform's web OAuth client is distinct from IAM workforce OAuth clients and IAP OAuth clients; those are not substitutes.
@@ -54,7 +54,7 @@ Applying migrations requires D1 access, beyond a Workers Scripts-only deployment
 
 ## Production promotion
 
-Create a separate production D1 database, apply migrations, configure production OAuth credentials and encryption key, add the permanent production callback to the correct OAuth client, and allow only the intended production origin. The branch deliberately does not turn on production backup or share preview credentials with it. The preview environment also does not inherit the production sponsored-AI secret.
+Production infrastructure is prepared: D1 `ahthatswho-backups` (`2bdd76d7-da72-42d3-95fe-7b62d7f3e732`), both migrations, dedicated OAuth credentials, and a separate encryption key. The production OAuth client has callback `https://ahthatswho.com/api/backup/callback`, and the branch config allows only `https://ahthatswho.com`. Production secrets were activated in a secrets-only version of the existing application. The feature code and production database binding are activated when this branch is promoted; preparing the secrets does not enable Google backup in the current live UI. The preview environment also does not inherit the production sponsored-AI secret.
 
 Before promotion, verify a real Google connection, upload/download checksum, clean-profile restore, consent cancellation/revocation, and the installed-iPhone return flow. Automated tests use synthetic OAuth/Drive responses; they do not establish real Google or iPhone success.
 
@@ -70,10 +70,8 @@ Before promotion, verify a real Google connection, upload/download checksum, cle
 
 The preview Worker, D1 database, both migrations, and preview-only `BACKUP_ENCRYPTION_KEY` were provisioned. The user created **AhThatsWho** (`ahthatswho`, number `672364502714`) and granted Editor to `opencode-workstation-sa@playground-incubator.iam.gserviceaccount.com`. Direct project access succeeded, and `gcloud services enable drive.googleapis.com --project=ahthatswho` completed successfully. Project listing initially lagged behind direct access.
 
-The remaining provisioning step is Google Auth Platform registration and creation of a **Web application** OAuth client. Google's documented client-creation flow uses the console; this environment has service-account CLI access but no authenticated console browser. Additional IAM roles are not the missing requirement. Do not substitute an IAM workforce or IAP OAuth client.
+Both user-supplied Web application credential JSON files were validated and installed through Wrangler's versioned secret API, using stdin without logging their secret values. Test client `672364502714-mhmjv6r1lc65dhp1madm30f60ogev61a.apps.googleusercontent.com` is installed in `ahthatswho-drive-preview`; production client `672364502714-phemij85vihto346jv8i9vot7k6vcq8v.apps.googleusercontent.com` is installed in `ahthatswho`. The existing preview encryption key was preserved. A new production encryption key was generated directly into the secret upload, with no key written into this repository or chat.
 
-Open [Google Auth Platform for this project](https://console.cloud.google.com/auth/overview?project=ahthatswho). Register the app as **AhThatsWho**, using the project owner's support/contact email and an **External** audience. Configure the three scopes listed above. For initial Testing, add the Google accounts that will test backups; Testing refresh tokens expire after seven days. Use **In production** when the required setup is complete to avoid that Testing-mode expiry.
+The supplied files configure both preview redirects and the production callback above. Console publishing/branding status and test-user membership are not included in these JSON files and remain unconfirmed. Production privacy content is available at `https://ahthatswho.com/privacy/`; the old standalone `public/privacy.html` was removed when this branch integrated SolidStart, so there is one policy source.
 
-Under [Clients](https://console.cloud.google.com/auth/clients?project=ahthatswho), create a **Web application** named **AhThatsWho Drive preview**, with both exact redirect URIs listed above and no JavaScript origins. Download the credential JSON when creating it: Google only exposes a new client secret at creation. Save it outside source control, for example `/tmp/ahthatswho-oauth-client.json`, or in the ignored `private/` directory. Do not paste the secret into chat. Once available locally, install its `web.client_id` and `web.client_secret` as preview Worker secrets and upload a new preview version so the branch alias receives those bindings. Preserve the existing `BACKUP_ENCRYPTION_KEY`.
-
-The deployed status endpoint deliberately reports unconfigured until the Google client ID and secret are installed. Real Google consent, refresh, upload and recovery remain unverified; the branch includes synthetic backend and browser tests for these flows. The privacy page for Google Auth Platform setup is `/privacy.html` on the intended app origin.
+The backend/browser automated tests simulate Google responses. A live redirect check confirms configured clients and PKCE parameters but does not establish real consent, refresh, upload, recovery, or installed-iPhone/Android success. Before production promotion, exercise a real connection, backup, and restore in the configured branch preview, plus an installed-PWA authorization return on both platforms. The cross-context one-time-code fallback is implemented and covered by automated tests.

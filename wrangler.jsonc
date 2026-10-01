@@ -12,6 +12,15 @@
     "enabled": false,
   },
   "preview_urls": true,
+  "d1_databases": [
+    {
+      "binding": "BACKUP_DB",
+      "database_name": "ahthatswho-backups",
+      "database_id": "2bdd76d7-da72-42d3-95fe-7b62d7f3e732",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": { "BACKUP_ORIGINS": "https://ahthatswho.com" },
   "env": {
     "preview": {
       "name": "ahthatswho-drive-preview",

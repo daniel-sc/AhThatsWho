@@ -512,6 +512,7 @@ main[data-screen='home'] {
 }
 .bottom-nav b {
   font-size: 0.75rem;
+  text-align: center;
   position: absolute;
   top: -4px;
   right: -14px;

@@ -67,7 +67,6 @@ export function createNotebook() {
   const [recording, setRecording] = createSignal(false);
   const [reviewEditing, setReviewEditing] = createSignal(false);
   const [importing, setImporting] = createSignal(false);
-  const [completed, setCompleted] = createSignal(false);
   const [online, setOnline] = createSignal(navigator.onLine);
   let disposed = false;
   let persistWrites = Promise.resolve();
@@ -140,14 +139,13 @@ export function createNotebook() {
       }
     }
   });
-  function navigate(screen: Screen, patch: Partial<UI> = {}, scroll = 0) {
+  function navigate(screen: Screen, patch: Partial<UI> = {}) {
     if (!canLeave()) return;
     setNotice('');
     const next = {
       ...ui(),
       screen,
-      scroll,
-      ...(ui().screen === 'home' ? { homeScroll: window.scrollY, homeAnchor: anchor() } : {}),
+      ...(ui().screen === 'home' ? { homeAnchor: anchor() } : {}),
       ...patch,
     };
     go(routePath(next), { replace: routePath(next) === location.pathname, state: { ui: next } });
@@ -283,8 +281,6 @@ export function createNotebook() {
     setReviewEditing,
     importing,
     setImporting,
-    completed,
-    setCompleted,
     online,
     sw,
     blocked,

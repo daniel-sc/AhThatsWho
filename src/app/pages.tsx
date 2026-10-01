@@ -150,7 +150,7 @@ export function HomePage() {
 }
 
 export function HouseholdPage() {
-  const { ui, contexts, current, navigate, home, beginEdit, capture, history, act } = usePage();
+  const { contexts, current, navigate, home, beginEdit, capture, history, act } = usePage();
   return (
     <Show
       when={current()}
@@ -159,7 +159,7 @@ export function HouseholdPage() {
       }
     >
       <section>
-        <button class="quiet" onClick={() => navigate('home', {}, ui().homeScroll)}>
+        <button class="quiet" onClick={() => navigate('home')}>
           ← Back to results
         </button>
         <div class="section-heading">
@@ -328,8 +328,7 @@ export function TrashPage() {
 }
 
 export function CapturePage() {
-  const { ui, setReturnToCapture, setRecording, setCompleted, report, navigate, setNotice } =
-    useNotebook();
+  const { ui, setReturnToCapture, setRecording, report, navigate, setNotice } = usePage();
   const captureHints = {
     householdId: ui().previous === 'household' ? ui().target : undefined,
     contextId: ui().context || undefined,
@@ -343,8 +342,7 @@ export function CapturePage() {
       hints={captureHints}
       close={() => navigate(ui().previous || 'home')}
       saved={() => {
-        setCompleted(false);
-        navigate('inbox');
+        navigate('inbox', { completed: false });
         setNotice('Saved to Inbox. Review it whenever you’re ready.');
       }}
       review={(id) => navigate('review', { capture: id })}
@@ -355,22 +353,22 @@ export function CapturePage() {
 }
 
 export function InboxPage() {
-  const { inbox, completed, setCompleted, unresolved, navigate, capture } = usePage();
+  const { ui, setUI, inbox, unresolved, navigate, capture } = usePage();
   return (
     <section>
       <h1>Your inbox</h1>
       <div class="filters">
         <button
-          classList={{ selected: !completed() }}
-          aria-pressed={!completed()}
-          onClick={() => setCompleted(false)}
+          classList={{ selected: !ui().completed }}
+          aria-pressed={!ui().completed}
+          onClick={() => setUI({ ...ui(), completed: false })}
         >
           To review · {unresolved().length}
         </button>
         <button
-          classList={{ selected: completed() }}
-          aria-pressed={completed()}
-          onClick={() => setCompleted(true)}
+          classList={{ selected: ui().completed }}
+          aria-pressed={ui().completed}
+          onClick={() => setUI({ ...ui(), completed: true })}
         >
           Completed
         </button>
@@ -378,7 +376,7 @@ export function InboxPage() {
       <For
         each={inbox()
           .filter((c) =>
-            completed() ? c.stage === 'applied' : !['applied', 'discarded'].includes(c.stage),
+            ui().completed ? c.stage === 'applied' : !['applied', 'discarded'].includes(c.stage),
           )
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
       >
@@ -410,13 +408,13 @@ export function InboxPage() {
           </button>
         )}
       </For>
-      <Show when={completed() && !inbox().some((c) => c.stage === 'applied')}>
+      <Show when={ui().completed && !inbox().some((c) => c.stage === 'applied')}>
         <div class="empty-state">
           <h2>No completed captures yet.</h2>
           <p>Notes you apply to your notebook will appear here.</p>
         </div>
       </Show>
-      <Show when={!unresolved().length && !completed()}>
+      <Show when={!unresolved().length && !ui().completed}>
         <div class="empty-state">
           <h2>Nothing waiting on you.</h2>
           <p>Capture a name or a detail now. It will be here when you have a moment.</p>
@@ -429,7 +427,7 @@ export function InboxPage() {
 
 export function ReviewPage() {
   const { rows, setRows, contexts, setReviewEditing, report, activeCapture, navigate, act } =
-    useNotebook();
+    usePage();
   return (
     <Show
       when={activeCapture()}

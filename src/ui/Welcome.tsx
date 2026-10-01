@@ -80,6 +80,9 @@ export function Welcome(props: {
           Import or restore a notebook <span aria-hidden="true">↗</span>
         </button>
         <InstallHelp installation={props.installation} />
+        <p>
+          <a href="/privacy">Privacy policy</a>
+        </p>
       </div>
     </section>
   );

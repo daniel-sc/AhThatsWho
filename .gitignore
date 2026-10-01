@@ -8,3 +8,6 @@ playwright-report/
 test-results/
 *.private.*
 private/
+
+.output/
+.solid/

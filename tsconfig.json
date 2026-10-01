@@ -10,7 +10,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client", "vite-plugin-pwa/client", "node"]
+    "types": ["vite/client", "vite-plugin-pwa/client", "node", "@solidjs/start/env"]
   },
   "include": ["src", "tests", "scripts", "e2e", "*.ts"]
 }

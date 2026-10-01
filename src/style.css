@@ -1161,3 +1161,13 @@ mark {
 .nav-link {
   text-decoration: none;
 }
+
+.privacy-page {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+  line-height: 1.65;
+}
+.privacy-page h2 {
+  margin-top: 2rem;
+}

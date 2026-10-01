@@ -1,44 +1,14 @@
 import { defineConfig } from 'vite';
-import solid from 'vite-plugin-solid';
+import { solidStart } from '@solidjs/start/config';
+import { nitro } from 'nitro/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { pwaOptions } from './pwa.config.ts';
 export default defineConfig({
-  plugins: [
-    solid(),
-    VitePWA({
-      registerType: 'prompt',
-      includeAssets: [
-        'favicon.png',
-        'brand-mark.png',
-        'apple-touch-icon.png',
-        'apple-touch-icon-v2.png',
-      ],
-      manifest: {
-        name: 'AhThatsWho',
-        short_name: 'AhThatsWho',
-        description: 'Names, in context.',
-        theme_color: '#ff624f',
-        background_color: '#fffefb',
-        display: 'standalone',
-        start_url: '/',
-        icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          {
-            src: '/icon-maskable-512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,ttf}'],
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [],
-      },
-    }),
-  ],
+  plugins: [solidStart(), nitro(), VitePWA(pwaOptions)],
+  nitro: {
+    preset: 'static',
+    prerender: { routes: ['/', '/privacy'], crawlLinks: false, failOnError: true },
+  },
   server: {
     proxy: { '/api': 'http://127.0.0.1:8787' },
   },
@@ -49,5 +19,4 @@ export default defineConfig({
       time: new Date().toISOString(),
     }),
   },
-  test: { environment: 'node', include: ['tests/**/*.test.ts'], setupFiles: ['tests/setup.ts'] },
 } as Parameters<typeof defineConfig>[0]);

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { savedMeta } from './helpers';
 import { fixtures } from '../src/domain/fixtures';
 test('large list restores visible household after detail and reload', async ({ page }) => {
   await page.goto('/');
@@ -27,7 +28,18 @@ test('large list restores visible household after detail and reload', async ({ p
   await expect(page).toHaveURL(new RegExp(`/households/${id}$`));
   await page.getByRole('button', { name: 'Back to results', exact: false }).click();
   await expect(page.locator(`[data-household="${id}"]`)).toBeInViewport();
-  await page.waitForTimeout(200);
+  // Reload must use the latest position, not the anchor from returning to results.
+  await page.evaluate(() => window.scrollBy(0, 4000));
+  await expect(page.locator(`[data-household="${id}"]`)).not.toBeInViewport();
+  const resumedId = await page.evaluate(
+    () =>
+      [...document.querySelectorAll<HTMLElement>('[data-household]')].find(
+        (row) =>
+          row.getBoundingClientRect().top > 0 && row.getBoundingClientRect().top < innerHeight,
+      )!.dataset.household!,
+  );
+  const scroll = await page.evaluate(() => window.scrollY);
+  await expect.poll(() => savedMeta(page, 'ui')).toMatchObject({ screen: 'home', scroll });
   await page.reload();
-  await expect(page.locator(`[data-household="${id}"]`)).toBeInViewport();
+  await expect(page.locator(`[data-household="${resumedId}"]`)).toBeInViewport();
 });

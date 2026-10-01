@@ -47,7 +47,9 @@ export function HomePage() {
     openHousehold,
     newHousehold,
     capture,
+    homeRestoreAnchor,
   } = usePage();
+  const restoreAnchor = homeRestoreAnchor();
   return (
     <Show
       when={!welcome()}
@@ -101,7 +103,7 @@ export function HomePage() {
             rows={results().rows}
             contexts={contexts()}
             query={ui().query}
-            restoreAnchor={ui().homeAnchor}
+            restoreAnchor={restoreAnchor}
             open={openHousehold}
           />
           <Show when={!results().rows.length}>

@@ -252,10 +252,17 @@ export function createNotebook() {
   function restoreDocumentScroll() {
     const saved = documentResume;
     documentResume = undefined;
-    if (saved) {
+    // The virtual list restores by row because its measured heights change on reload.
+    if (saved && !(saved.screen === 'home' && saved.homeAnchor)) {
       const frame = requestAnimationFrame(() => window.scrollTo(0, saved.scroll));
       onCleanup(() => cancelAnimationFrame(frame));
     }
+  }
+  function homeRestoreAnchor() {
+    const state = documentResume?.screen === 'home' ? documentResume : ui();
+    return !state.context || contexts().some((c) => c.id === state.context)
+      ? state.homeAnchor
+      : undefined;
   }
   return {
     location,
@@ -304,5 +311,6 @@ export function createNotebook() {
     launchState,
     startupState,
     restoreDocumentScroll,
+    homeRestoreAnchor,
   };
 }

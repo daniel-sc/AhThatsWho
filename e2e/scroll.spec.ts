@@ -29,6 +29,11 @@ test('large list restores visible household after detail and reload', async ({ p
   await page.getByRole('button', { name: 'Back to results', exact: false }).click();
   await expect(page.locator(`[data-household="${id}"]`)).toBeInViewport();
   // Reload must use the latest position, not the anchor from returning to results.
+  // Let the virtual list finish its four-frame measurement/restoration sequence.
+  await page.evaluate(async () => {
+    for (let frame = 0; frame < 4; frame++)
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  });
   await page.evaluate(() => window.scrollBy(0, 4000));
   await expect(page.locator(`[data-household="${id}"]`)).not.toBeInViewport();
   const resumedId = await page.evaluate(

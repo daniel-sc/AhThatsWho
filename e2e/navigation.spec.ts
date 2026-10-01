@@ -137,3 +137,31 @@ test('an offline cold navigation can open an unvisited view URL', async ({ page,
   await page.goto('/capture');
   await expect(page.getByLabel('Capture text')).toBeVisible();
 });
+
+test('navigation waits for the notebook to finish opening', async ({ page }) => {
+  await page.addInitScript(() => {
+    const open = indexedDB.open.bind(indexedDB);
+    indexedDB.open = (...args: Parameters<IDBFactory['open']>) => {
+      const request = open(...args);
+      request.addEventListener(
+        'success',
+        (event) => {
+          event.stopImmediatePropagation();
+          (window as unknown as { finishOpening: () => void }).finishOpening = () =>
+            request.dispatchEvent(new Event('success'));
+        },
+        { once: true },
+      );
+      return request;
+    };
+  });
+  await page.goto('/home');
+  await expect(page.getByText('Opening your notebook…')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Capture', exact: true })).toBeDisabled();
+  await page.waitForFunction(() => 'finishOpening' in window);
+  await page.evaluate(() => (window as unknown as { finishOpening: () => void }).finishOpening());
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+});

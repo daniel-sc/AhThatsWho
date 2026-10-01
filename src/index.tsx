@@ -1,6 +1,8 @@
 import { render } from 'solid-js/web';
 import { ErrorBoundary } from 'solid-js';
 import App from './app/App';
+import { Router } from '@solidjs/router';
+import { routes } from './app/routes';
 import './style.css';
 render(
   () => (
@@ -13,7 +15,9 @@ render(
         </main>
       }
     >
-      <App />
+      <Router root={App} scrollRestoration>
+        {routes}
+      </Router>
     </ErrorBoundary>
   ),
   document.getElementById('root')!,

@@ -1,3 +1,4 @@
+import type { RouteDefinition } from '@solidjs/router';
 export type Screen =
   | 'home'
   | 'household'
@@ -36,25 +37,26 @@ export function routePath(route: Route): string {
   }
 }
 
-// The bare root is the PWA launch/resume URL. Named paths always take precedence.
-export function parseRoute(pathname: string): Route | undefined {
-  const path = pathname.replace(/\/+$/, '') || '/';
-  if (path === '/') return undefined;
-  if (/^\/(home|settings|capture|inbox|trash)$/.test(path))
-    return { screen: path.slice(1) as Screen };
-  if (path === '/households/new') return { screen: 'editor' };
+// Solid Router owns matching and browser history.
+export const routes: RouteDefinition[] = [
+  { path: '/' },
+  { path: '/home', info: { screen: 'home' } },
+  { path: '/settings', info: { screen: 'settings' } },
+  { path: '/capture', info: { screen: 'capture' } },
+  { path: '/inbox', info: { screen: 'inbox' } },
+  { path: '/trash', info: { screen: 'trash' } },
+  { path: '/households/new', info: { screen: 'editor' } },
+  { path: '/households/:target', info: { screen: 'household' } },
+  { path: '/households/:target/edit', info: { screen: 'editor' } },
+  { path: '/households/:target/history', info: { screen: 'history' } },
+  { path: '/inbox/:capture', info: { screen: 'review' } },
+  { path: '*missing' },
+];
+
+export function decodeId(value: string | undefined) {
   try {
-    const household = /^\/households\/([^/]+)(?:\/(edit|history))?$/.exec(path);
-    if (household)
-      return {
-        screen:
-          household[2] === 'edit' ? 'editor' : household[2] === 'history' ? 'history' : 'household',
-        target: decodeURIComponent(household[1]),
-      };
-    const review = /^\/inbox\/([^/]+)$/.exec(path);
-    if (review) return { screen: 'review', capture: decodeURIComponent(review[1]) };
+    return value === undefined ? undefined : decodeURIComponent(value);
   } catch {
-    // Malformed URL encoding is handled like an unknown path.
+    return value; // A malformed or unavailable ID follows the missing-record fallback.
   }
-  return undefined;
 }

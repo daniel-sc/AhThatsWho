@@ -1,4 +1,16 @@
-import { createSignal, createMemo, Show, For, onMount, onCleanup, lazy, Suspense } from 'solid-js';
+import {
+  createSignal,
+  createMemo,
+  createEffect,
+  on,
+  Show,
+  For,
+  onMount,
+  onCleanup,
+  lazy,
+  Suspense,
+} from 'solid-js';
+import { useBeforeLeave, useCurrentMatches, useLocation, useNavigate } from '@solidjs/router';
 import { liveQuery } from 'dexie';
 import { useRegisterSW } from 'virtual:pwa-register/solid';
 import {
@@ -28,13 +40,20 @@ import { cloudStatus, startBackup } from './backup';
 import { Welcome } from '../ui/Welcome';
 import { createInstallation } from '../ui/InstallHelp';
 import { isFreshNotebook } from '../data/onboarding';
-import { initial, parseRoute, routePath, type Screen, type UI } from './routes';
+import { initial, routePath, routes, decodeId, type Screen, type UI } from './routes';
 const Settings = lazy(() => import('../ui/Settings').then((m) => ({ default: m.Settings })));
 const CapturePanel = lazy(() =>
   import('../ui/CapturePanel').then((m) => ({ default: m.CapturePanel })),
 );
 const Review = lazy(() => import('../ui/Review').then((m) => ({ default: m.Review })));
 export default function App() {
+  const location = useLocation<{ ui: UI }>();
+  const go = useNavigate();
+  const matches = useCurrentMatches();
+  const [opening, setOpening] = createSignal(true);
+  // UI snapshots belong to views; Solid Router manages the history entries.
+  const viewStates = new Map<string, UI>();
+  let launchState = initial;
   const [ui, setUI] = createSignal<UI>(initial);
   const [rows, setRows] = createSignal<HouseholdRecord[]>([]);
   const [contexts, setContexts] = createSignal<Context[]>([]);
@@ -114,51 +133,47 @@ export default function App() {
     );
     return row ? { id: row.dataset.household!, top: row.getBoundingClientRect().top } : undefined;
   }
-  let historyIndex = 0;
-  let restoringHistory = false;
-  let revertingHistory = false;
-  let navigationEpoch = 0;
-  const historyState = (state: UI) => ({ notebook: true, index: historyIndex, ui: state });
-  function replaceHistory(state = ui()) {
-    window.history.replaceState(historyState(state), '', routePath(state));
-  }
   function persist() {
-    if (!ready()) return;
+    if (!ready() || opening()) return;
     const state = {
       ...ui(),
       scroll: window.scrollY,
       ...(ui().screen === 'home' ? { homeAnchor: anchor() } : {}),
     };
-    if (!restoringHistory) replaceHistory(state);
+    viewStates.set(routePath(state), state);
     persistWrites = persistWrites
       .then(() => setMeta('ui', state))
       .then(() => {})
       .catch(report);
   }
+  function canLeave() {
+    if (!ready() || opening()) return false;
+    if (!recording() && !importing()) return true;
+    setNotice(
+      recording()
+        ? 'Stop the recording before navigating.'
+        : 'Finish or cancel the import before navigating.',
+    );
+    return false;
+  }
+  useBeforeLeave((event) => {
+    if (!canLeave()) event.preventDefault();
+    else persist();
+  });
   function navigate(screen: Screen, patch: Partial<UI> = {}, scroll = 0) {
-    if (!ready() || restoringHistory) return;
-    if (recording() || importing()) {
-      setNotice(
-        recording()
-          ? 'Stop the recording before navigating.'
-          : 'Finish or cancel the import before navigating.',
-      );
-      return;
-    }
-    navigationEpoch++;
-    persist();
+    if (!canLeave()) return;
+    setNotice('');
     if (ui().screen === 'home')
       setUI({ ...ui(), homeScroll: window.scrollY, homeAnchor: anchor() });
     const next = { ...ui(), screen, scroll, ...patch };
-    if (routePath(next) !== routePath(ui())) {
-      historyIndex++;
-      window.history.pushState(historyState(next), '', routePath(next));
+    if (routePath(next) === location.pathname) {
+      setUI(next);
+      window.scrollTo(0, scroll);
+      persist();
+    } else {
+      viewStates.set(routePath(next), next);
+      go(routePath(next), { state: { ui: next }, scroll: false });
     }
-    setUI(next);
-    setError('');
-    setNotice('');
-    window.scrollTo(0, scroll);
-    persist();
   }
   const home = () =>
     navigate('home', {
@@ -174,43 +189,12 @@ export default function App() {
       .update(r.household.id, { lastViewedAt: new Date().toISOString() })
       .catch(report);
   }
-  function newHousehold() {
-    setEdit({
-      h: {
-        ...emptyHousehold(),
-        contextIds: ui().context ? [ui().context] : [],
-        people: [{ id: crypto.randomUUID() }],
-      },
-    });
-    navigate('editor', { target: undefined });
-  }
-  function beginEdit() {
-    if (current()) {
-      setEdit({ h: structuredClone(current()!.household), version: current()!.versionId });
-      navigate('editor');
-    }
-  }
+  const newHousehold = () => navigate('editor', { target: undefined });
+  const beginEdit = () => navigate('editor');
   function capture() {
-    captureHints = {
-      householdId: ui().screen === 'household' ? ui().target : undefined,
-      contextId: ui().context || undefined,
-    };
     navigate('capture', { previous: ui().screen === 'capture' ? 'home' : ui().screen });
   }
-  async function history() {
-    try {
-      setRevisions(
-        await db.revisions
-          .where('record.household.id')
-          .equals(ui().target!)
-          .reverse()
-          .sortBy('archivedAt'),
-      );
-      navigate('history');
-    } catch (e) {
-      report(e);
-    }
-  }
+  const history = () => navigate('history');
   async function act(fn: () => Promise<unknown>) {
     try {
       await fn();
@@ -218,97 +202,107 @@ export default function App() {
       report(e);
     }
   }
-  async function prepareView(state: UI): Promise<UI> {
+  async function prepareView(state: UI) {
     let restored = { ...initial, ...state };
-    if (!parseRoute(routePath(restored))) restored = { ...initial };
+    let editor: { h: Household; version?: string } | undefined;
+    let history: Revision[] = [];
+    let message = '';
+    if (!routes.some((route) => route.info?.screen === restored.screen)) restored = { ...initial };
     if (['household', 'editor', 'history'].includes(restored.screen)) {
       const record = rows().find((r) => r.household.id === restored.target && !r.deletedAt);
       if (record) {
         if (restored.screen === 'editor')
-          setEdit({ h: structuredClone(record.household), version: record.versionId });
+          editor = { h: structuredClone(record.household), version: record.versionId };
         if (restored.screen === 'history')
-          setRevisions(
-            await db.revisions
-              .where('record.household.id')
-              .equals(record.household.id)
-              .reverse()
-              .sortBy('archivedAt'),
-          );
+          history = await db.revisions
+            .where('record.household.id')
+            .equals(record.household.id)
+            .reverse()
+            .sortBy('archivedAt');
       } else if (restored.screen === 'editor' && !restored.target) {
-        const draft = await getMeta<{ household: Household; baseVersion?: string } | undefined>(
-          'draft:household:new',
-          undefined,
-        );
-        setEdit(
-          draft
-            ? { h: draft.household, version: draft.baseVersion }
-            : {
-                h: { ...emptyHousehold(), people: [{ id: crypto.randomUUID() }] },
-              },
-        );
+        editor = {
+          h: {
+            ...emptyHousehold(),
+            contextIds: restored.context ? [restored.context] : [],
+            people: [{ id: crypto.randomUUID() }],
+          },
+        };
+        // Editor loads its own saved draft after mounting.
       } else {
         restored = { ...initial };
-        setNotice('This household is not available on this device.');
+        message = 'This household is not available on this device.';
       }
     }
     if (restored.screen === 'review' && !inbox().some((c) => c.id === restored.capture)) {
       restored = { ...initial, screen: 'inbox' };
-      setNotice('This capture is not available on this device.');
+      message = 'This capture is not available on this device.';
     }
     if (restored.context && !contexts().some((c) => c.id === restored.context))
       restored = { ...restored, context: '', homeAnchor: undefined };
-    if (restored.screen === 'capture')
-      captureHints = {
-        householdId: restored.previous === 'household' ? restored.target : undefined,
-        contextId: restored.context || undefined,
-      };
-    return restored;
+    return { state: restored, editor, history, message };
   }
-  const popstate = async () => {
-    const entry = window.history.state;
-    if (revertingHistory && entry?.index === historyIndex) {
-      revertingHistory = false;
-      restoringHistory = false;
-      return;
-    }
-    if (recording() || importing()) {
-      setNotice(
-        recording()
-          ? 'Stop the recording before navigating.'
-          : 'Finish or cancel the import before navigating.',
-      );
-      if (entry?.notebook && entry.index !== historyIndex) {
-        revertingHistory = true;
-        restoringHistory = true;
-        window.history.go(historyIndex - entry.index);
-      }
-      return;
-    }
-    const epoch = ++navigationEpoch;
-    restoringHistory = true;
-    setError('');
-    setNotice('');
-    try {
-      const route = parseRoute(location.pathname) || { screen: 'home' as const };
-      const restored = await prepareView(entry?.notebook ? entry.ui : { ...initial, ...route });
-      if (disposed || epoch !== navigationEpoch) return;
-      historyIndex = entry?.notebook ? entry.index : 0;
-      setUI(restored);
-      replaceHistory(restored);
-      requestAnimationFrame(() => {
-        if (epoch !== navigationEpoch || disposed) return;
-        window.scrollTo(0, restored.scroll);
-        persist();
-      });
-    } catch (e) {
-      report(e);
-      replaceHistory();
-    } finally {
-      if (epoch === navigationEpoch) restoringHistory = false;
-    }
-  };
-  const previousScrollRestoration = window.history.scrollRestoration;
-  window.history.scrollRestoration = 'manual';
+  createEffect(
+    on(
+      () => (ready() ? location.pathname : undefined),
+      (path) => {
+        if (!path) return;
+        const match = matches().at(-1);
+        const screen = match?.route.info?.screen as Screen | undefined;
+        if (!screen) {
+          const state = path === '/' ? launchState : initial;
+          viewStates.set(routePath(state), state);
+          setOpening(false);
+          go(routePath(state), { replace: true, scroll: false });
+          if (path !== '/') setNotice('This page does not exist. Showing Home.');
+          return;
+        }
+        const cached = viewStates.get(path) || location.state?.ui || initial;
+        const next = {
+          ...cached,
+          screen,
+          ...(['household', 'editor', 'history'].includes(screen)
+            ? { target: decodeId(match?.params.target) }
+            : {}),
+          ...(screen === 'review' ? { capture: decodeId(match?.params.capture) } : {}),
+        };
+        let cancelled = false;
+        onCleanup(() => {
+          cancelled = true;
+        });
+        setOpening(true);
+        setError('');
+        void prepareView(next)
+          .then(({ state, editor, history, message }) => {
+            if (cancelled || disposed) return;
+            if (routePath(state) !== path.replace(/\/+$/, '')) {
+              setOpening(false);
+              go(routePath(state), { replace: true, scroll: false });
+              setNotice(message);
+              return;
+            }
+            setEdit(editor);
+            setRevisions(history);
+            captureHints = {
+              householdId: state.previous === 'household' ? state.target : undefined,
+              contextId: state.context || undefined,
+            };
+            setUI(state);
+            setOpening(false);
+            requestAnimationFrame(() => {
+              if (cancelled || disposed) return;
+              window.scrollTo(0, state.scroll);
+              persist();
+            });
+          })
+          .catch((error) => {
+            if (!cancelled) {
+              setOpening(false);
+              report(error);
+            }
+          });
+      },
+    ),
+  );
   const beforeUnload = (event: BeforeUnloadEvent) => {
     if (recording() || importing()) {
       event.preventDefault();
@@ -316,12 +310,7 @@ export default function App() {
     }
   };
   window.addEventListener('beforeunload', beforeUnload);
-  window.addEventListener('popstate', popstate);
-  onCleanup(() => {
-    window.removeEventListener('beforeunload', beforeUnload);
-    window.removeEventListener('popstate', popstate);
-    window.history.scrollRestoration = previousScrollRestoration;
-  });
+  onCleanup(() => window.removeEventListener('beforeunload', beforeUnload));
   onMount(async () => {
     try {
       await db.open();
@@ -338,24 +327,11 @@ export default function App() {
       setRows(households);
       setContexts(ctx);
       setInbox(items);
-      const route = parseRoute(location.pathname);
-      const entry = window.history.state;
-      const sameEntry = entry?.notebook && routePath(entry.ui) === routePath(route || initial);
-      const restored = await prepareView(
-        sameEntry
-          ? entry.ui
-          : route
-            ? { ...initial, ...route }
-            : location.pathname === '/' && preferences.resume
-              ? saved
-              : initial,
-      );
-      historyIndex = sameEntry ? entry.index : 0;
-      if (!route && location.pathname !== '/') setNotice('This page does not exist. Showing Home.');
-      setUI(restored);
+      launchState = preferences.resume ? saved : initial;
+      if (!routes.some((route) => route.info?.screen === launchState.screen)) launchState = initial;
+      if (preferences.resume && routePath(saved) === location.pathname)
+        viewStates.set(location.pathname, saved);
       setReady(true);
-      replaceHistory(restored);
-      requestAnimationFrame(() => window.scrollTo(0, restored.scroll || 0));
       const subscriptions = [
         liveQuery(() => isFreshNotebook()).subscribe({ next: setFresh, error: report }),
         liveQuery(() => db.households.toArray()).subscribe(setRows),
@@ -399,11 +375,21 @@ export default function App() {
   return (
     <>
       <header class="app-header" classList={{ welcoming: welcome() }}>
-        <button class="brand" onClick={home} aria-label="AhThatsWho home">
+        <button
+          class="brand"
+          disabled={!ready() || opening()}
+          onClick={home}
+          aria-label="AhThatsWho home"
+        >
           <img class="brand-icon" src="/brand-mark.png" alt="" aria-hidden="true" />
           <span>AhThatsWho</span>
         </button>
-        <button class="icon-button" aria-label="Settings" onClick={() => navigate('settings')}>
+        <button
+          class="icon-button"
+          disabled={!ready() || opening()}
+          aria-label="Settings"
+          onClick={() => navigate('settings')}
+        >
           <Icon name="settings" />
         </button>
         <Show when={ready() && ui().screen === 'home' && !welcome()}>
@@ -468,7 +454,7 @@ export default function App() {
             </button>
           </div>
         </Show>
-        <Show when={ready()} fallback={<p class="loading">Opening your notebook…</p>}>
+        <Show when={ready() && !opening()} fallback={<p class="loading">Opening your notebook…</p>}>
           <Suspense fallback={<p>Opening…</p>}>
             <Show when={ui().screen === 'home'}>
               <Show
@@ -840,7 +826,7 @@ export default function App() {
               ? 'page'
               : undefined
           }
-          disabled={recording() || importing()}
+          disabled={!ready() || opening() || recording() || importing()}
           onClick={home}
         >
           <span aria-hidden="true">
@@ -853,7 +839,7 @@ export default function App() {
         <button
           classList={{ active: ui().screen === 'capture' }}
           aria-current={ui().screen === 'capture' ? 'page' : undefined}
-          disabled={recording() || importing()}
+          disabled={!ready() || opening() || recording() || importing()}
           onClick={capture}
         >
           <span aria-hidden="true">
@@ -867,7 +853,7 @@ export default function App() {
         <button
           classList={{ active: ui().screen === 'inbox' || ui().screen === 'review' }}
           aria-current={ui().screen === 'inbox' || ui().screen === 'review' ? 'page' : undefined}
-          disabled={recording() || importing()}
+          disabled={!ready() || opening() || recording() || importing()}
           onClick={() => navigate('inbox')}
         >
           <span aria-hidden="true">

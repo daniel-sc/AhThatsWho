@@ -71,7 +71,7 @@ AhThatsWho is open source under the [MIT license](LICENSE). Bundled fonts retain
 
 ## View URLs
 
-Views have bookmarkable paths: `/home`, `/settings`, `/capture`, `/inbox`, `/trash`,
+Solid Router manages navigation and browser history. Views have bookmarkable paths: `/home`, `/settings`, `/capture`, `/inbox`, `/trash`,
 `/households/new`, `/households/:id`, `/households/:id/edit`,
 `/households/:id/history`, and `/inbox/:captureId` for review. Explicit paths take
 precedence over the resume preference; `/` remains the launch URL and resumes the

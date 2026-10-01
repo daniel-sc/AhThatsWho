@@ -52,11 +52,11 @@ Applying migrations requires D1 access, beyond a Workers Scripts-only deployment
 - Latest-ten plus daily-for-30-days retention uses UTC calendar days and server snapshot receipt times. Retention runs only after verified upload. Other histories are never automatically pruned; deleting another history is a separate explicit, irreversible action.
 - Raw audio, unsaved drafts and credentials remain excluded. File export remains the portable recovery path if the service is unavailable. Deleting hidden app data in Google can remove cloud backups.
 
-## Production promotion
+## Production deployment
 
-Production infrastructure is prepared: D1 `ahthatswho-backups` (`2bdd76d7-da72-42d3-95fe-7b62d7f3e732`), both migrations, dedicated OAuth credentials, and a separate encryption key. The production OAuth client has callback `https://ahthatswho.com/api/backup/callback`, and the branch config allows only `https://ahthatswho.com`. Production secrets were activated in a secrets-only version of the existing application. The feature code and production database binding are activated when this branch is promoted; preparing the secrets does not enable Google backup in the current live UI. The preview environment also does not inherit the production sponsored-AI secret.
+Production infrastructure is prepared: D1 `ahthatswho-backups` (`2bdd76d7-da72-42d3-95fe-7b62d7f3e732`), both migrations, dedicated OAuth credentials, and a separate encryption key. The production OAuth client has callback `https://ahthatswho.com/api/backup/callback`, and the branch config allows only `https://ahthatswho.com`. Production secrets were activated in a secrets-only version of the existing application. The backup branch was merged into `main` on 1 October 2026 at the user’s request. The main deployment activates the feature code and production database binding. The preview environment also does not inherit the production sponsored-AI secret.
 
-Before promotion, verify a real Google connection, upload/download checksum, clean-profile restore, consent cancellation/revocation, and the installed-iPhone return flow. Automated tests use synthetic OAuth/Drive responses; they do not establish real Google or iPhone success.
+Production acceptance testing remains: verify a real Google connection, upload/download checksum, clean-profile restore, consent cancellation/revocation, and installed-iPhone/Android return flows. The user will complete GCP verification and perform these checks in production. Automated tests use synthetic OAuth/Drive responses; they do not establish real Google or iPhone success.
 
 ## Official contracts
 
@@ -74,4 +74,4 @@ Both user-supplied Web application credential JSON files were validated and inst
 
 The supplied files configure both preview redirects and the production callback above. Console publishing/branding status and test-user membership are not included in these JSON files and remain unconfirmed. Production privacy content is available at `https://ahthatswho.com/privacy/`; the old standalone `public/privacy.html` was removed when this branch integrated SolidStart, so there is one policy source.
 
-The backend/browser automated tests simulate Google responses. A live redirect check confirms configured clients and PKCE parameters but does not establish real consent, refresh, upload, recovery, or installed-iPhone/Android success. Before production promotion, exercise a real connection, backup, and restore in the configured branch preview, plus an installed-PWA authorization return on both platforms. The cross-context one-time-code fallback is implemented and covered by automated tests.
+The backend/browser automated tests simulate Google responses. A live redirect check confirms configured clients and PKCE parameters but does not establish real consent, refresh, upload, recovery, or installed-iPhone/Android success. Real connection, backup, restore, and installed-PWA authorization returns on both platforms remain to be tested in production after the user completes GCP verification. The cross-context one-time-code fallback is implemented and covered by automated tests.

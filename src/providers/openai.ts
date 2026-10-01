@@ -1,5 +1,5 @@
 import { defaultRecognitionLanguages } from '../domain/languages';
-import { assert, validateHousehold } from '../domain/integrity';
+import { assert, object, validateHousehold } from '../domain/integrity';
 import {
   now,
   personName,
@@ -134,7 +134,7 @@ export async function generate(
   contexts: Context[],
   languages: string[] = defaultRecognitionLanguages,
   mode: GenerationMode = 'auto',
-): Promise<Proposal> {
+): Promise<Proposal[]> {
   const source =
     c.kind === 'audio' ? [c.text, c.transcript].filter(Boolean).join('\n') : c.transcript || c.text;
   assert(source && source.trim(), 'No source text. Transcribe or enter text first.');
@@ -150,7 +150,7 @@ export async function generate(
     candidates,
     contexts,
     nameIndex: index.slice(0, 5000),
-    ...(mode === 'new' ? { mode } : {}),
+    mode,
   };
   const response = await request(
     'responses',
@@ -171,49 +171,81 @@ export async function generate(
     .map((x: { text: string }) => x.text)
     .join('');
   assert(raw, 'No proposal returned');
-  const p = stripNull(JSON.parse(raw)) as Proposal;
-  p.generatedAt = now();
-  p.model = PARSER_MODEL;
-  p.contextSuggestions = p.contextSuggestions || [];
-  p.removals = [];
+  const result = stripNull(JSON.parse(raw));
+  object(result);
   assert(
-    ['create', 'update', 'ambiguous', 'multiple'].includes(p.action),
-    'Invalid action returned',
+    Array.isArray(result.proposals) && result.proposals.length > 0 && result.proposals.length <= 20,
+    'No usable household drafts returned',
+  );
+  const drafts = result.proposals as Proposal[];
+  assert(
+    (mode !== 'single' && mode !== 'new') || drafts.length === 1,
+    'AI did not return one household. Your previous drafts are kept; try again.',
   );
   assert(
-    mode !== 'new' || p.action === 'create' || p.action === 'multiple',
-    'AI did not return a new household draft. Your previous proposal is kept; try again.',
+    mode !== 'multiple' || drafts.length >= 2,
+    'AI did not return multiple households. Clarify the source and try again.',
   );
-  assert(
-    Array.isArray(p.candidateIds) && p.candidateIds.every((id) => index.some((r) => r.id === id)),
-    'Unknown candidate ID returned',
-  );
-  assert(
-    Array.isArray(p.contextSuggestions) && p.contextSuggestions.length === 0,
-    'Create new contexts in Settings, then process this capture again.',
-  );
-  if (p.action === 'create' || p.action === 'update') {
-    assert(p.household, 'Missing household');
-    const allowed = new Set(contexts.map((x) => x.id));
-    validateHousehold(p.household, allowed);
-    let current: HouseholdRecord | undefined;
-    if (p.action === 'update') {
-      current = candidates.find((r) => r.household.id === p.targetId);
-      assert(current && current.household.id === p.household.id, 'Update target was not supplied');
-      p.baseVersion = current.versionId;
-      p.removals = removals(current.household, p.household);
-    } else {
-      assert(!p.targetId, 'New household must not have an existing target');
-      assert(p.household.id.startsWith('tmp:'), 'New household ID must be temporary');
-    }
+  const targets = new Set<string>();
+  for (const p of drafts) {
+    object(p);
+    assert(typeof p.reason === 'string', 'Missing draft explanation');
     assert(
-      p.household.people.every(
-        (x) => x.id.startsWith('tmp:') || current?.household.people.some((y) => y.id === x.id),
-      ),
-      'Unexpected person ID returned',
+      Array.isArray(p.sourceQuotes) &&
+        p.sourceQuotes.length > 0 &&
+        p.sourceQuotes.every(
+          (quote) => typeof quote === 'string' && quote.trim() && source.includes(quote),
+        ),
+      'Draft evidence does not match the source. Try processing again.',
     );
+    p.generatedAt = now();
+    p.model = PARSER_MODEL;
+    p.contextSuggestions = p.contextSuggestions || [];
+    p.removals = [];
+    assert(['create', 'update', 'ambiguous'].includes(p.action), 'Invalid action returned');
+    assert(
+      mode !== 'new' || p.action === 'create',
+      'AI did not return a new household draft. Your previous proposal is kept; try again.',
+    );
+    assert(
+      Array.isArray(p.candidateIds) && p.candidateIds.every((id) => index.some((r) => r.id === id)),
+      'Unknown candidate ID returned',
+    );
+    assert(
+      Array.isArray(p.contextSuggestions) && p.contextSuggestions.length === 0,
+      'Create new contexts in Settings, then process this capture again.',
+    );
+    if (p.action === 'create' || p.action === 'update') {
+      assert(p.household, 'Missing household');
+      const allowed = new Set(contexts.map((x) => x.id));
+      validateHousehold(p.household, allowed);
+      let current: HouseholdRecord | undefined;
+      if (p.action === 'update') {
+        current = candidates.find((r) => r.household.id === p.targetId);
+        assert(
+          current && current.household.id === p.household.id,
+          'Update target was not supplied',
+        );
+        assert(
+          !targets.has(current.household.id),
+          'Several drafts update the same household. Try processing again.',
+        );
+        targets.add(current.household.id);
+        p.baseVersion = current.versionId;
+        p.removals = removals(current.household, p.household);
+      } else {
+        assert(!p.targetId, 'New household must not have an existing target');
+        assert(p.household.id.startsWith('tmp:'), 'New household ID must be temporary');
+      }
+      assert(
+        p.household.people.every(
+          (x) => x.id.startsWith('tmp:') || current?.household.people.some((y) => y.id === x.id),
+        ),
+        'Unexpected person ID returned',
+      );
+    }
   }
-  return p;
+  return drafts;
 }
 export function transcriptionKeywords(
   rows: HouseholdRecord[],

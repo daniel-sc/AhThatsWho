@@ -15,6 +15,7 @@ export function HouseholdView(props: {
   contexts: Context[];
   query?: string;
   compact?: boolean;
+  review?: boolean;
 }) {
   const h = () => props.household;
   const names = () => h().people.filter((p) => p.role === 'adult' || !p.role);
@@ -55,6 +56,9 @@ export function HouseholdView(props: {
                 <Show when={!p.firstName?.value && !p.lastName?.value}>
                   <span class="first-name">{personName(p)}</span>
                 </Show>
+                <Show when={props.review}>
+                  <small class="review-role">{p.role || 'Role not specified'}</small>
+                </Show>
               </span>
             )}
           </For>
@@ -72,7 +76,10 @@ export function HouseholdView(props: {
                       text={personName(p) + certainty(p.firstName) + certainty(p.lastName)}
                       query={props.query}
                     />
-                    <Show when={p.role === 'other'}> (other)</Show>
+                    <Show when={props.review}>
+                      <small class="review-role">{p.role}</small>
+                    </Show>
+                    <Show when={!props.review && p.role === 'other'}> (other)</Show>
                   </>
                 )}
               </For>
@@ -100,7 +107,7 @@ export function HouseholdView(props: {
         </div>
       </Show>
       <Show when={!props.compact}>
-        <For each={h().people}>
+        <For each={h().people.filter((p) => !props.review || p.birthDate || p.ageNote || p.notes)}>
           {(p) => (
             <div class="person-detail">
               <strong>{personName(p)}</strong>

@@ -1,4 +1,4 @@
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 export type Value<T = string> = { value: T; certainty?: 'uncertain' | 'approximate' };
 export type BirthDate =
   | { kind: 'year'; year: number }
@@ -65,6 +65,13 @@ export interface Proposal {
   model?: string;
   generatedAt: string;
   removals: string[];
+  sourceQuotes?: string[];
+  edited?: boolean;
+}
+export interface CaptureReceipt {
+  householdId: string;
+  versionId: string;
+  appliedAt: string;
 }
 export interface Capture {
   id: string;
@@ -81,9 +88,17 @@ export interface Capture {
   error?: string;
   attempt?: string;
   proposal?: Proposal;
-  receipt?: { householdId: string; versionId: string; appliedAt: string };
+  receipt?: CaptureReceipt;
+  proposals?: Proposal[];
+  receipts?: CaptureReceipt[];
+  sourceChanged?: boolean;
   sourceRef?: string;
 }
+// Version 1 captures remain readable in IndexedDB and imported backups.
+export const captureDrafts = (c: Capture): Proposal[] =>
+  c.proposals ?? (c.proposal ? [c.proposal] : []);
+export const captureReceipts = (c: Capture): CaptureReceipt[] =>
+  c.receipts ?? (c.receipt ? [c.receipt] : []);
 export interface AudioRecord {
   id: string;
   captureId: string;

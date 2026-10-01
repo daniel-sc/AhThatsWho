@@ -9,6 +9,9 @@ import {
   type Household,
   type HouseholdRecord,
   type Proposal,
+  captureDrafts,
+  captureReceipts,
+  type CaptureReceipt,
 } from '../domain/types';
 function factText(value: unknown): string {
   if (typeof value === 'string') return value;
@@ -48,85 +51,113 @@ export function removals(current: Household, proposed: Household) {
   return changes;
 }
 export async function applyCapture(id: string, acknowledged = false, d: AhThatsWhoDB = db) {
-  const receipt = await d.transaction(
+  const receipts = await d.transaction(
     'rw',
     [d.inbox, d.households, d.contexts, d.revisions, d.meta],
     async () => {
       const c = await d.inbox.get(id);
       assert(c, 'Capture not found');
-      if (c.receipt) return c.receipt;
-      assert(c.stage === 'proposed' && c.proposal, 'This capture is not ready to apply');
-      const p = c.proposal;
+      if (captureReceipts(c).length) return captureReceipts(c);
+      assert(!c.attempt && !c.sourceChanged, 'Finish processing the current source before saving');
+      const drafts = captureDrafts(c);
+      assert(c.stage === 'proposed' && drafts.length, 'This capture is not ready to apply');
+      const targets = drafts.filter((p) => p.action === 'update').map((p) => p.targetId);
       assert(
-        !p.contextSuggestions.length,
-        'This older proposal suggests new contexts. Create them in Settings if wanted, then reprocess the capture.',
+        new Set(targets).size === targets.length,
+        'Several drafts update the same household. Reprocess this capture.',
       );
-      assert(p.action === 'update' || p.action === 'create', 'Choose one household first');
-      assert(p.household, 'Proposal has no household');
-      let h = structuredClone(p.household);
-      if (p.action === 'update') {
-        const current = await d.households.get(p.targetId!);
-        assert(current && !current.deletedAt, 'The target was removed. Choose another target.');
+      const receipts: CaptureReceipt[] = [];
+      for (const p of drafts) {
         assert(
-          current.versionId === p.baseVersion,
-          'This proposal is stale: the household changed. Regenerate or review current data.',
+          !p.contextSuggestions.length,
+          'This older proposal suggests new contexts. Create them in Settings if wanted, then reprocess the capture.',
         );
-        assert(h.id === current.household.id, 'Target ID mismatch');
         assert(
-          !removals(current.household, h).length || acknowledged,
-          'Review and acknowledge the changed or removed facts',
+          p.action === 'update' || p.action === 'create',
+          'Choose a household for every draft first',
         );
-      } else {
-        h.id = uuid();
-        const ids = new Map(h.people.map((x) => [x.id, uuid()]));
-        h.people = h.people.map((x) => ({ ...x, id: ids.get(x.id)! }));
-      }
-      if (p.action === 'update') {
-        const current = await d.households.get(h.id);
-        h.people = h.people.map((x) =>
-          current!.household.people.some((old) => old.id === x.id) ? x : { ...x, id: uuid() },
+        assert(p.household, 'Proposal has no household');
+        const h = structuredClone(p.household);
+        if (p.action === 'update') {
+          const current = await d.households.get(p.targetId!);
+          assert(current && !current.deletedAt, 'The target was removed. Choose another target.');
+          assert(
+            current.versionId === p.baseVersion,
+            'This proposal is stale: the household changed. Regenerate or review current data.',
+          );
+          assert(h.id === current.household.id, 'Target ID mismatch');
+          assert(
+            !removals(current.household, h).length || acknowledged,
+            'Review and acknowledge the changed or removed facts',
+          );
+          h.people = h.people.map((x) =>
+            current.household.people.some((old) => old.id === x.id) ? x : { ...x, id: uuid() },
+          );
+        } else {
+          h.id = uuid();
+          h.people = h.people.map((x) => ({ ...x, id: uuid() }));
+        }
+        validateHousehold(h, new Set((await d.contexts.toArray()).map((c) => c.id)));
+        const r = await writeHousehold(
+          h,
+          p.action === 'update' ? p.baseVersion : undefined,
+          { kind: p.model ? 'llm' : 'manual', captureId: id, sourceRef: c.sourceRef },
+          d,
         );
+        receipts.push({ householdId: r.household.id, versionId: r.versionId, appliedAt: now() });
       }
-      validateHousehold(h, new Set((await d.contexts.toArray()).map((x) => x.id)));
-      const r = await writeHousehold(
-        h,
-        p.action === 'update' ? p.baseVersion : undefined,
-        { kind: p.model ? 'llm' : 'manual', captureId: id, sourceRef: c.sourceRef },
-        d,
-      );
-      c.receipt = { householdId: r.household.id, versionId: r.versionId, appliedAt: now() };
+      c.receipts = receipts;
+      delete c.receipt;
       c.stage = 'applied';
       c.updatedAt = now();
       delete c.attempt;
       delete c.error;
       await d.inbox.put(c);
       await dirty(d);
-      return c.receipt;
+      return receipts;
     },
   );
   await cleanupAudio(id, d).catch(() => {
-    /* Receipt is committed; startup retries cleanup. */
+    /* Startup retries cleanup after the committed save. */
   });
-  return receipt;
+  return receipts;
 }
-// Keep the edited proposal and its application together: a stale save leaves both untouched.
-export async function saveAndApplyCapture(id: string, proposal: Proposal, d = db) {
-  return d.transaction(
-    'rw',
-    [d.inbox, d.households, d.contexts, d.revisions, d.meta, d.audio],
-    async () => {
-      const capture = await d.inbox.get(id);
-      if (capture?.receipt) return capture.receipt;
-      await storeProposal(id, proposal, undefined, d);
-      return applyCapture(id, true, d);
-    },
-  );
+
+// Editing changes only the draft. The review screen applies the complete capture.
+export async function saveDraft(
+  id: string,
+  index: number,
+  proposal: Proposal,
+  expected: Proposal | undefined,
+  d = db,
+) {
+  return d.transaction('rw', [d.inbox, d.meta], async () => {
+    const c = await d.inbox.get(id);
+    assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture already completed');
+    assert(
+      !c.attempt && !c.sourceChanged,
+      'Finish processing the current source before editing drafts',
+    );
+    const drafts = captureDrafts(c);
+    assert(
+      JSON.stringify(drafts[index]) === JSON.stringify(expected),
+      'This draft changed. Reopen it before editing.',
+    );
+    assert(index >= 0 && index <= drafts.length, 'Draft no longer exists');
+    drafts[index] = {
+      ...proposal,
+      sourceQuotes: expected?.sourceQuotes,
+      edited: true,
+      generatedAt: now(),
+    };
+    await storeProposals(id, drafts, undefined, d);
+  });
 }
 
 export async function discardCapture(id: string, d = db) {
   await d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
-    assert(c && !c.receipt, 'Capture cannot be discarded');
+    assert(c && !captureReceipts(c).length, 'Capture cannot be discarded');
     c.stage = 'discarded';
     delete c.attempt;
     c.updatedAt = now();
@@ -148,20 +179,36 @@ export async function updateTranscript(id: string, text: string, d = db) {
     } else c.transcript = text.trim();
     c.stage = 'transcript-ready';
     c.updatedAt = now();
-    delete c.proposal;
+    c.sourceChanged = captureDrafts(c).length > 0;
     delete c.attempt;
     delete c.error;
     await d.inbox.put(c);
     await dirty(d);
   });
 }
-export async function storeProposal(id: string, p: Proposal, attempt?: string, d = db) {
+export async function storeProposals(
+  id: string,
+  drafts: Proposal[],
+  attempt?: string,
+  d = db,
+  replaceIndex?: number,
+) {
   return d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
-    assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture already completed');
+    assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture is already completed');
     if (attempt && c.attempt !== attempt) return false;
-    c.proposal = p;
-    c.stage = p.action === 'ambiguous' || p.action === 'multiple' ? 'needs-target' : 'proposed';
+    if (replaceIndex !== undefined) {
+      const previous = captureDrafts(c);
+      assert(previous[replaceIndex] && drafts.length === 1, 'Draft no longer exists');
+      previous[replaceIndex] = { ...drafts[0], sourceQuotes: previous[replaceIndex].sourceQuotes };
+      drafts = previous;
+    }
+    c.proposals = drafts;
+    delete c.proposal;
+    delete c.sourceChanged;
+    c.stage = drafts.some((p) => p.action === 'ambiguous' || p.action === 'multiple')
+      ? 'needs-target'
+      : 'proposed';
     delete c.attempt;
     delete c.error;
     c.updatedAt = now();

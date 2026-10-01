@@ -36,15 +36,22 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
               {
                 type: 'output_text',
                 text: JSON.stringify({
-                  action: 'create',
-                  household: {
-                    id: 'tmp:house',
-                    people: [{ id: 'tmp:person', firstName: { value: 'Beatrice' } }],
-                    contextIds: [],
-                  },
-                  candidateIds: [],
-                  contextSuggestions: [],
-                  reason: 'A new household to confirm.',
+                  proposals: [
+                    {
+                      sourceQuotes: [route.request().postDataJSON().source],
+                      ...{
+                        action: 'create',
+                        household: {
+                          id: 'tmp:house',
+                          people: [{ id: 'tmp:person', firstName: { value: 'Beatrice' } }],
+                          contextIds: [],
+                        },
+                        candidateIds: [],
+                        contextSuggestions: [],
+                        reason: 'A new household to confirm.',
+                      },
+                    },
+                  ],
                 }),
               },
             ],
@@ -81,10 +88,12 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   await page.getByRole('button', { name: 'Play saved recording' }).click();
   await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
   await page.getByRole('button', { name: 'Process with OpenAI' }).click();
-  await expect(page.getByRole('heading', { name: 'Proposed', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: '1 household to review', exact: true }),
+  ).toBeVisible();
   expect(transcriptions).toBe(1);
   expect(proposals).toBe(2);
-  await page.getByRole('button', { name: 'Apply proposal' }).click();
+  await page.getByRole('button', { name: 'Save 1 household' }).click();
   await expect(page.getByText('The names, together.')).toBeVisible();
   const remaining = await page.evaluate(
     () =>

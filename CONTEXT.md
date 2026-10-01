@@ -8,7 +8,7 @@ A personal name notebook for remembering people, their households, and where you
 A named setting in which people are known, such as a course or club. A household can belong to multiple contexts.
 
 **Capture**:
-A recorded or written source note about one household, potentially including multiple members of that household.
+A recorded or written source note about one or more households, potentially including multiple members of each household.
 
 **Merge draft**:
 A proposed update to an existing household that combines captured information with existing household information.

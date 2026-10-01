@@ -32,7 +32,7 @@ async function suggestion(page: Page) {
   await page.getByRole('button', { name: /Change the memory cue/ }).click();
 }
 
-test('edit an AI suggestion and apply in one save, then open the completed household', async ({
+test('edit an AI suggestion, review and save, then open the completed household', async ({
   page,
 }) => {
   await suggestion(page);
@@ -42,15 +42,16 @@ test('edit an AI suggestion and apply in one save, then open the completed house
   ).toBeVisible();
   await page.getByLabel('Memory cue', { exact: true }).fill('Indigo bicycle');
   await expect(page.getByText('Changed or removed facts')).toBeVisible();
-  await page.getByRole('button', { name: 'Save & apply' }).click();
+  await page.getByRole('button', { name: 'Keep draft changes' }).click();
+  await page.getByRole('button', { name: 'Save 1 household', exact: true }).click();
   await expect(page.getByText('The names, together.')).toBeVisible();
   await expect(page.getByText('Indigo bicycle', { exact: true })).toBeVisible();
   await page.getByRole('link', { name: /Inbox/ }).click();
   await page.getByRole('button', { name: 'Completed', exact: true }).click();
   await page.getByRole('button', { name: /Change the memory cue/ }).click();
-  await expect(page.getByRole('heading', { name: 'Completed capture' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved 1 household' })).toBeVisible();
   await expect(page.getByText(/proposal is stale|household changed after/)).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Apply proposal' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save 1 household' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Open household' }).click();
   await expect(page.getByText('Indigo bicycle', { exact: true })).toBeVisible();
 });
@@ -61,7 +62,7 @@ test('unchanged AI suggestion needs only the apply action, including changed fac
   await suggestion(page);
   await expect(page.getByText('Changed or removed facts')).toBeVisible();
   await expect(page.getByRole('checkbox')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Apply proposal' }).click();
+  await page.getByRole('button', { name: 'Save 1 household' }).click();
   await expect(page.getByText('The names, together.')).toBeVisible();
   await expect(page.getByText('Blue bicycle', { exact: true })).toBeVisible();
 });
@@ -71,7 +72,8 @@ test('correct source inline without keeping contradictory original text', async 
   await page.getByRole('button', { name: 'Correct source text' }).click();
   await page.getByLabel('Corrected source text').fill('Actually, a green bicycle.\nMet at school.');
   await page.getByRole('button', { name: 'Save source text' }).click();
-  await expect(page.getByRole('heading', { name: 'Proposed', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save 1 household' })).toBeDisabled();
+  await expect(page.getByText('Source corrected.', { exact: false })).toBeVisible();
   await expect(page.locator('.source')).toHaveText('Actually, a green bicycle.\nMet at school.');
 });
 

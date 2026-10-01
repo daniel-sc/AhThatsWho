@@ -471,7 +471,11 @@ export function Editor(props: {
               <ul>
                 <For each={props.changes?.(h())}>{(change) => <li>{change}</li>}</For>
               </ul>
-              <p>Saving applies these changes. The previous version stays in History.</p>
+              <p>
+                {props.saveLabel === 'Keep draft changes'
+                  ? 'These changes will be included when you save the capture.'
+                  : 'Saving applies these changes. The previous version stays in History.'}
+              </p>
             </div>
           </Show>
           <div class="actions sticky-actions">

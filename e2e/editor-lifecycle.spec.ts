@@ -69,7 +69,8 @@ test('manual capture proposal cleans up its draft after applying', async ({ page
   await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Create new manually' }).click();
   await page.getByLabel('First name', { exact: true }).fill('Beatrice');
-  await page.getByRole('button', { name: 'Save & apply', exact: true }).click();
+  await page.getByRole('button', { name: 'Keep draft changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save 1 household', exact: true }).click();
   await expectCleanSave(page);
 });
 

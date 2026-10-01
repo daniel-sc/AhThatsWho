@@ -17,9 +17,9 @@ import { parseBackup, validDate } from '../src/domain/integrity';
 import { snapshot, replaceData, recoverSafety, digest } from '../src/backup/portable';
 import {
   applyCapture,
-  saveAndApplyCapture,
+  saveDraft,
   manualProposal,
-  storeProposal,
+  storeProposals,
   updateTranscript,
 } from '../src/capture/application';
 import { BackupCoordinator } from '../src/backup/coordinator';
@@ -145,7 +145,7 @@ describe('capture application', () => {
     const first = await applyCapture(c.id, true, d);
     expect(await applyCapture(c.id, true, d)).toEqual(first);
     expect(await d.revisions.count()).toBe(1);
-    const current = (await d.households.get(first.householdId))!;
+    const current = (await d.households.get(first[0].householdId))!;
     const next = {
       ...c,
       id: uuid(),
@@ -159,22 +159,19 @@ describe('capture application', () => {
       d,
     );
     await expect(applyCapture(next.id, true, d)).rejects.toThrow('stale');
-    expect((await d.households.get(first.householdId))?.household.notes).toBe('A newer fact');
+    expect((await d.households.get(first[0].householdId))?.household.notes).toBe('A newer fact');
   });
-  it('saves and applies edited suggestions once, and rolls back stale edits', async () => {
+  it('keeps single-household edits as drafts and still blocks a stale apply', async () => {
     const d = database();
     const { c, r } = await capture(d);
     const edited = manualProposal({ ...r.household, cue: 'Edited suggestion' }, r);
-    const receipt = await saveAndApplyCapture(c.id, edited, d);
-    expect(await saveAndApplyCapture(c.id, edited, d)).toEqual(receipt);
-    expect((await d.households.get(r.household.id))?.household.cue).toBe('Edited suggestion');
-    expect(await d.revisions.count()).toBe(1);
-    const next = { ...c, id: uuid() };
-    await saveCapture(next, d);
-    await expect(saveAndApplyCapture(next.id, edited, d)).rejects.toThrow('stale');
-    expect((await d.inbox.get(next.id))?.proposal).toEqual(c.proposal);
-    expect((await d.inbox.get(next.id))?.receipt).toBeUndefined();
-    expect(await d.revisions.count()).toBe(1);
+    await saveDraft(c.id, 0, edited, c.proposal, d);
+    expect((await d.households.get(r.household.id))?.household.cue).toBe(r.household.cue);
+    expect(await d.revisions.count()).toBe(0);
+    await saveHousehold({ ...r.household, cue: 'Newer edit' }, r.versionId, undefined, d);
+    await expect(applyCapture(c.id, true, d)).rejects.toThrow('stale');
+    expect((await d.inbox.get(c.id))?.proposals?.[0].household?.cue).toBe('Edited suggestion');
+    expect((await d.inbox.get(c.id))?.receipts).toBeUndefined();
   });
   it('requires acknowledgement of removals', async () => {
     const d = database();
@@ -200,14 +197,15 @@ describe('capture application', () => {
     const d = database();
     const { c } = await capture(d);
     await d.inbox.update(c.id, { attempt: 'new-attempt' });
-    expect(await storeProposal(c.id, c.proposal!, 'old-attempt', d)).toBe(false);
+    expect(await storeProposals(c.id, [c.proposal!], 'old-attempt', d)).toBe(false);
     await updateTranscript(c.id, 'Corrected source', d);
     const updated = await d.inbox.get(c.id);
-    expect(updated?.proposal).toBeUndefined();
+    expect(updated?.proposal).toEqual(c.proposal);
+    expect(updated?.sourceChanged).toBe(true);
     expect(updated?.text).toBe('Corrected source');
     expect(updated?.transcript).toBeUndefined();
     expect(updated?.attempt).toBeUndefined();
-    expect(await storeProposal(c.id, c.proposal!, 'new-attempt', d)).toBe(false);
+    expect(await storeProposals(c.id, [c.proposal!], 'new-attempt', d)).toBe(false);
   });
   it('creates with app-generated IDs and an idempotent receipt', async () => {
     const d = database();
@@ -224,7 +222,7 @@ describe('capture application', () => {
     };
     await saveCapture(c, d);
     const receipt = await applyCapture(c.id, false, d);
-    expect(receipt.householdId).not.toBe('tmp:h');
+    expect(receipt[0].householdId).not.toBe('tmp:h');
     expect(await applyCapture(c.id, false, d)).toEqual(receipt);
     expect(await d.households.count()).toBe(4);
   });

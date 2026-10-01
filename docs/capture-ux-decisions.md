@@ -1,17 +1,17 @@
 # Capture and context UX
 
-Date: 2026-09-30. Design approved and implemented in the working tree; not deployed by this change.
+Baseline decisions: 2026-09-30, approved and implemented in the working tree; not deployed by that change. The multiple-household design below was agreed on 2026-10-01; implemented in the working tree, with verification below.
 
 Primary goal: great UX with low complexity. Complexity estimates include implementation and verification.
 
 ## Agreed direction
 
-| Topic           | Decision                                                                                                                                                                                                                | Estimated complexity |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| New contexts    | Create only through an explicit UI action. AI may propose assigning existing contexts for review, but must not create contexts from mentions or spoken instructions.                                                    | Low                  |
-| Capture scope   | Keep one household per capture. Explain this beside the input, including that multiple people from the same household are allowed.                                                                                      | Low                  |
-| Context filters | Show all contexts in a horizontally scrollable row; remove More. Favorites first, stable ordering, visible scroll affordance, and keep the active context visible when opening. No additional context search initially. | Low                  |
-| Feedback        | Email to `hello@ahthatswho.com` is the primary feedback route; GitHub is a secondary route for issues and discussion.                                                                                                   | Low                  |
+| Topic           | Decision                                                                                                                                                                                                                | Estimated complexity      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| New contexts    | Create only through an explicit UI action. AI may propose assigning existing contexts for review, but must not create contexts from mentions or spoken instructions.                                                    | Low                       |
+| Capture scope   | One capture may create or update several households. Review each draft, then save all together.                                                                                                                         | High for complete feature |
+| Context filters | Show all contexts in a horizontally scrollable row; remove More. Favorites first, stable ordering, visible scroll affordance, and keep the active context visible when opening. No additional context search initially. | Low                       |
+| Feedback        | Email to `hello@ahthatswho.com` is the primary feedback route; GitHub is a secondary route for issues and discussion.                                                                                                   | Low                       |
 
 ## New household alternative
 
@@ -21,11 +21,50 @@ Generate the independent new household draft in a separate request when the user
 
 Including both drafts in the initial response was considered: it enables immediate switching but requires a broader proposal format and persistence changes and generates unused alternatives. On-demand generation was selected to keep complexity lower, accepting an additional wait and possible request failure.
 
+## Multiple households per capture — agreed design
+
+Design agreed through the interview on 2026-10-01, including the final reasoning-effort choice. The implementation now handles one or several household drafts per capture. Complexity includes implementation and verification.
+
+Settled in the interview:
+
+- **Scope:** accept instructions concerning several households in one capture, including a mixture of new households and updates to existing households. Clearly separated instructions are the primary use case. The later decision to guess unclear boundaries means separation is not a hard input requirement. Estimated complexity: high.
+- **Precision trade-off:** some accuracy loss is acceptable in exchange for convenience, provided users can review and correct proposals. A demonstrated absence of meaningful regression is not a prerequisite selected by the user. This does not establish the size of any acceptable loss. Estimated complexity: medium for the review/correction policy, within a high-complexity feature.
+- **Terminology:** a capture is the source note and can concern more than one household. The glossary reflects this intended scope.
+- **Grouping correction:** initial processing lets the model decide the household grouping. Explicit actions reprocess as one household or as multiple households through a fresh LLM call using the source note/transcript, with the requested number of household operations as an instruction. Each operation may be a creation or an update. The previous generated proposal is not the source for reprocessing. No persistent behavior preference is needed for this flow. Estimated additional complexity: medium; the complete feature remains high complexity.
+- **Review and save:** show the proposed households together, clearly distinguishing creations from updates. One save action names the number of affected households and saves all changes or none. Every draft must be ready before saving; partial saving is outside this initial design. Estimated complexity: medium within the overall feature.
+- **Unclear boundaries:** propose a best-guess grouping even without useful boundary clues, indicate uncertainty in review, and let the user correct the source and reprocess. This is an explicit preference for fewer interruptions over avoiding arbitrary groupings. Guessing does not authorize inventing people or facts. Estimated additional UI complexity: low when reusing the source correction flow. User effort depends on whether the guess is useful; it is not inherently greater than asking for clarification.
+- **Reprocessing edited drafts:** generate fresh drafts from the source, including any source corrections. Replace previous drafts only after success, preserve them if the request fails, and show a short notice when manual draft edits will be replaced. Manual draft edits are not carried into the fresh request; corrections made to the source are. Estimated complexity: low–medium.
+
+Existing behavior carried forward:
+
+- Each proposed household remains reviewable and manually editable. The existing choice to draft an update as a new household applies to the individual draft. That alternative uses the relevant captured information without copying facts from the proposed existing target. Extending these controls and isolating the relevant source information has medium complexity within the overall feature.
+- The choice to guess household boundaries does not change the existing policy for matching an existing household: choose the better-supported interpretation, but leave a target unresolved when equally plausible identities would risk updating the wrong household. All targets must be resolved before the single save action can complete. This retains the existing matching policy; adapting its review state to several drafts has medium complexity.
+- Existing protection against stale updates and repeated application extends to the complete set of drafts. A failed save leaves every household unchanged. Source correction, keeping a capture for later, and explicit creation of contexts remain available.
+
+Precision assessment so far is a hypothesis based on the current code, not a measured result. The previous parser assumed one group. The new parser separates grouping from household shorthand; candidate retrieval still uses the whole source. Broader processing can introduce incorrect splits, fact attribution across households, and competition for retrieved candidates. Reprocessing provides recovery but does not prevent an unnoticed error. The existing live evaluator has three synthetic cases; documented validation does not establish real-model regression safety. A useful comparison must include existing single-household cases as well as mixed creation/update notes and incidental mentions of other households, and report correction burden alongside incorrect proposals.
+
+For live quality validation, compare the previous and current parsers on the same labeled source notes and notebook contents. Include single-household lists, name collisions, spelling corrections, partial dates, incidental mentions, clearly separated households, mixed creates/updates, and unclear grouping. Report facts assigned to the wrong household, incorrect existing targets, unnecessary splits, omitted facts, and the correction effort. For inherently ambiguous grouping, do not claim a unique correct split without user-provided intent. Some precision loss is accepted; the interview did not set a numeric loss budget or require a zero-regression launch gate.
+
+**Reasoning effort — agreed:** the current parser explicitly uses `gpt-6-luna` with low reasoning. The user selected medium reasoning for explicit multiple-household reprocessing. The [official Luna model documentation](https://developers.openai.com/api/docs/models/gpt-6-luna) supports both efforts and lists medium as the model default. The [official deployment guidance](https://developers.openai.com/api/docs/guides/deployment-checklist) recommends low for extraction and higher effort for more involved reasoning, with evaluation of quality, latency, and cost. Neither source establishes the gain for this application's household task.
+
+Keep initial processing and other parser calls at low, using medium for explicit "Reprocess as multiple households" requests, without adding a user setting. Initial processing uses low even when it produces multiple households. Reprocessing as one household and drafting an individual proposal as new also use low. Estimated incremental complexity: low for selecting effort from the requested mode; medium for meaningful comparative evaluation. Medium could help track people, relationships, and facts across several creates/updates, but cannot recover missing boundary information or an existing household's facts omitted from the input. It is not evidence that the broader feature preserves existing precision. Compare identical forced-multiple prompts at low and medium on repeated runs, measuring assignment errors, omissions, latency, and token usage. Comparing automatic low processing against forced-multiple medium processing would confound the effect of the override with the effect of reasoning effort. This policy is implemented. Live comparative evaluation remains pending because no local OpenAI API key is available.
+
+Overall complexity remains high because multiple drafts affect generation, review, saved capture state, all-or-none application, and backup compatibility. The override buttons themselves are a medium addition, not the main cost. See the [capture scope ADR](adr/0003-multiple-households-per-capture.md).
+
+## Multiple-household implementation and verification
+
+- Parser output contains a bounded array of household drafts, each with source excerpts validated against the input. Independent new-household alternatives use only the selected card’s excerpts. Medium effort is selected only for explicit multiple-household reprocessing and is controlled by the shared direct/sponsored request builder.
+- Review distinguishes creates and updates, displays grouping explanations, retains individual editing/target correction, and saves the capture in one transaction with a receipt for each household. Editor changes return to review for both single and multiple drafts. Failed reprocessing retains previous drafts; source corrections mark them outdated until regenerated. Per-draft and whole-capture redrafting warn when manual edits will be replaced.
+- Backup format 2 preserves every draft and receipt. Version 1 local records and backups are read through the same compatibility helpers. Current-data recovery uses an editor key that includes the target version, so an obsolete local draft cannot replace the current household during recovery.
+- A small synthetic comparison runner lives in `scripts/evaluate-capture.ts`. Its dry run lists eight cases and 57 requests: three repetitions of previous/current low reasoning for five existing cases, and current automatic low and forced-multiple low/medium reasoning for three multiple-household cases. It records incorrect targets/grouping, omitted or misplaced facts, latency, token usage, and full synthetic drafts. Flagged issues are a correction-effort proxy, not measured human correction time. No live quality gain is claimed.
+- Verification: type checking, production build, all 97 unit tests, and all 50 Playwright browser tests passed. A Playwright CLI walkthrough exercised mixed creation/update review, editing, and saving both households. Visual inspection covered mobile and desktop; widths 320, 390, 768, and 1280 px had no horizontal overflow. Browser responses were mocked, so these checks establish application behavior, not model accuracy.
+- Two independent reviewers received repository/spec context without the implementation conversation. Their findings led to uniform draft-only editing, an explicit notice before replacing an edited individual draft, and a regression fix for recovering an obsolete editor draft against current household data. Re-review found no remaining material implementation issues. Live comparative evaluation remains pending without a local API key.
+
 ## Feedback routing status
 
 On 2026-09-30, Cloudflare Email Routing and its DNS records were enabled. After the destination was verified, the forwarding rule for `hello@ahthatswho.com` was created and confirmed enabled through the API. Routing reports ready. End-to-end delivery to the destination inbox has not been tested.
 
-## Implementation and verification
+## Earlier single-household implementation and verification
 
 - New contexts remain available through explicit creation in Settings or the household editor. AI output is restricted to existing contexts. Older proposals containing context suggestions require reprocessing before applying; no contexts are silently created.
 - Review offers **Draft as new household** for suggested updates and ambiguous matches, with a loading status and the existing manual fallback. The on-demand request works through sponsored AI and personal keys without a new stored proposal format.
@@ -35,4 +74,4 @@ On 2026-09-30, Cloudflare Email Routing and its DNS records were enabled. After 
 - All 28 existing Playwright journeys passed. Two temporary browser walkthroughs additionally verified loading/failure/retry/apply for a new draft, preservation of the original household, ambiguous-match access, legacy proposal handling, explicit context creation, feedback links, horizontal scrolling and selected-context restoration. Temporary walkthrough code was removed after verification.
 - Screenshots were inspected at mobile widths; layout checks covered 320, 390, 768 and 1280 px. Browser checks used Chromium and mocked model responses, not physical iPhone or live-model evaluation.
 
-Terminology lives in [CONTEXT.md](../CONTEXT.md). These reversible UX decisions do not currently warrant a separate ADR.
+Terminology lives in [CONTEXT.md](../CONTEXT.md). The original reversible UX decisions do not warrant separate ADRs; the multiple-household capture boundary is recorded above because it affects persisted captures and save semantics.

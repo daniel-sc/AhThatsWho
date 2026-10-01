@@ -2,14 +2,23 @@ import { defaultRecognitionLanguages } from '../domain/languages';
 import type { Preferences } from '../domain/types';
 import { db, dirty, getMeta } from '../data/db';
 import { assert } from '../domain/integrity';
-import { uuid, now } from '../domain/types';
-import { storeProposal } from './application';
+import { uuid, now, captureDrafts } from '../domain/types';
+import { storeProposals } from './application';
 import type { GenerationMode } from '../providers/openai-contract';
-export async function processCapture(id: string, mode: GenerationMode = 'auto') {
+export async function processCapture(
+  id: string,
+  mode: GenerationMode = 'auto',
+  draftIndex?: number,
+) {
   const attempt = uuid();
   await db.transaction('rw', [db.inbox, db.meta], async () => {
     const c = await db.inbox.get(id);
     assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture already completed');
+    assert(
+      draftIndex === undefined ||
+        (mode === 'new' && !c.sourceChanged && captureDrafts(c)[draftIndex]),
+      'Reprocess the current source first',
+    );
     c.attempt = attempt;
     delete c.error;
     await db.inbox.put(c);
@@ -48,8 +57,22 @@ export async function processCapture(id: string, mode: GenerationMode = 'auto') 
       if (!accepted) return;
       c = (await db.inbox.get(id))!;
     }
-    const p = await api.generate(c, rows, contexts, languages, mode);
-    await storeProposal(id, p, attempt);
+    if (draftIndex !== undefined) {
+      const drafts = captureDrafts(c);
+      const quotes = drafts[draftIndex].sourceQuotes;
+      assert(
+        quotes?.length || drafts.length === 1,
+        'Correct the source and reprocess to isolate this household first.',
+      );
+      c = {
+        ...c,
+        kind: 'text',
+        text: quotes?.join('\n') || [c.text, c.transcript].filter(Boolean).join('\n'),
+        transcript: undefined,
+      };
+    }
+    const drafts = await api.generate(c, rows, contexts, languages, mode);
+    await storeProposals(id, drafts, attempt, db, draftIndex);
   } catch (error) {
     await db.transaction('rw', [db.inbox, db.meta], async () => {
       const c = await db.inbox.get(id);

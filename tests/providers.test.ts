@@ -43,7 +43,21 @@ const reply = (p: unknown) =>
   new Response(
     JSON.stringify({
       status: 'completed',
-      output: [{ content: [{ type: 'output_text', text: JSON.stringify(p) }] }],
+      output: [
+        {
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({
+                proposals: (Array.isArray(p) ? p : [p]).map((draft) => ({
+                  sourceQuotes: [capture().text],
+                  ...draft,
+                })),
+              }),
+            },
+          ],
+        },
+      ],
     }),
   );
 it.each(['personal', 'sponsored'] as const)(
@@ -65,7 +79,7 @@ it.each(['personal', 'sponsored'] as const)(
       reason: 'New household from the source',
     };
     fetchMock.mockImplementation(async () => reply(result));
-    expect((await generate(c, b.households, b.contexts, ['de'], 'new')).action).toBe('create');
+    expect((await generate(c, b.households, b.contexts, ['de'], 'new'))[0].action).toBe('create');
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     const input = mode === 'personal' ? JSON.parse(body.input) : body;
     expect(input).toMatchObject({
@@ -96,7 +110,7 @@ it('requests strict output without provider storage and binds the supplied base 
       reason: 'Update the cue',
     }),
   );
-  const p = await generate(capture(), b.households, b.contexts);
+  const [p] = await generate(capture(), b.households, b.contexts);
   expect(p.baseVersion).toBe(r.versionId);
   expect(p.removals.length).toBeGreaterThan(0);
   const payload = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -246,3 +260,52 @@ it('reports network and unreadable-response failures with recovery guidance', as
   fetchMock.mockResolvedValueOnce(new Response('<html>Proxy error</html>'));
   await expect(generate(capture(), [], [])).rejects.toThrow('unreadable response');
 });
+
+it('validates every draft and rejects duplicate update targets and invented source evidence', async () => {
+  const b = fixtures(1),
+    r = b.households[0];
+  const p = {
+    action: 'update',
+    targetId: r.household.id,
+    household: r.household,
+    candidateIds: [],
+    contextSuggestions: [],
+    reason: 'Update',
+  };
+  fetchMock.mockResolvedValueOnce(reply([p, p]));
+  await expect(generate(capture(), b.households, b.contexts, ['de'], 'multiple')).rejects.toThrow(
+    'same household',
+  );
+  fetchMock.mockResolvedValueOnce(
+    reply({ ...p, sourceQuotes: ['Invented detail absent from the source'] }),
+  );
+  await expect(generate(capture(), b.households, b.contexts)).rejects.toThrow('evidence');
+});
+
+it.each(['auto', 'single', 'multiple', 'new'] as const)(
+  'uses the requested %s mode and enforces draft count',
+  async (mode) => {
+    const p = {
+      action: 'create',
+      household: { id: 'tmp:h', people: [{ id: 'tmp:p' }], contextIds: [] },
+      candidateIds: [],
+      contextSuggestions: [],
+      reason: 'New',
+    };
+    fetchMock.mockResolvedValue(reply(mode === 'multiple' ? [p, p] : p));
+    expect(await generate(capture(), [], [], ['de'], mode)).toHaveLength(
+      mode === 'multiple' ? 2 : 1,
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.reasoning.effort).toBe(mode === 'multiple' ? 'medium' : 'low');
+    if (mode === 'multiple') {
+      fetchMock.mockResolvedValueOnce(reply(p));
+      await expect(generate(capture(), [], [], ['de'], mode)).rejects.toThrow(
+        'multiple households',
+      );
+    } else if (mode !== 'auto') {
+      fetchMock.mockResolvedValueOnce(reply([p, p]));
+      await expect(generate(capture(), [], [], ['de'], mode)).rejects.toThrow('one household');
+    }
+  },
+);

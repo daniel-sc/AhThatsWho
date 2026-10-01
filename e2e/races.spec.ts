@@ -69,10 +69,17 @@ test('an ambiguous provider reply goes to target review and a stale proposal is 
               {
                 type: 'output_text',
                 text: JSON.stringify({
-                  action: 'ambiguous',
-                  candidateIds: ['synthetic-0', 'synthetic-1'],
-                  contextSuggestions: [],
-                  reason: 'Choose the intended household.',
+                  proposals: [
+                    {
+                      sourceQuotes: [JSON.parse(route.request().postDataJSON().input).source],
+                      ...{
+                        action: 'ambiguous',
+                        candidateIds: ['synthetic-0', 'synthetic-1'],
+                        contextSuggestions: [],
+                        reason: 'Choose the intended household.',
+                      },
+                    },
+                  ],
                 }),
               },
             ],
@@ -94,10 +101,11 @@ test('an ambiguous provider reply goes to target review and a stale proposal is 
   await other.getByRole('button', { name: 'Edit', exact: true }).click();
   await other.getByLabel('Memory cue', { exact: true }).fill('A newer cue');
   await other.getByRole('button', { name: 'Save', exact: true }).click();
-  await page.getByRole('button', { name: 'Save & apply', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('stale');
-  await expect(page.getByLabel('Memory cue', { exact: true })).toHaveValue('Red bicycle');
-  await page.getByRole('button', { name: 'Cancel & discard draft' }).click();
+  await page.getByRole('button', { name: 'Keep draft changes', exact: true }).click();
+  await expect(
+    page.getByText('This household changed after the proposal was made.', { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save 1 household' })).toBeDisabled();
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.getByRole('button', { name: /Elena Example 1/ })).toContainText('A newer cue');
 });

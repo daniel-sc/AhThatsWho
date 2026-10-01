@@ -1171,3 +1171,74 @@ mark {
 .privacy-page h2 {
   margin-top: 2rem;
 }
+
+/* A capture can contain several independently reviewable household drafts. */
+.review-draft {
+  margin: 20px 0;
+  padding: 24px;
+  background: var(--paper);
+  border: 1px solid var(--surface-hover);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.review-draft .eyebrow {
+  margin-bottom: 14px;
+}
+.review-draft h2 {
+  margin-top: 0;
+}
+.review-reason {
+  margin-top: 16px;
+}
+.review-details {
+  margin: 16px 0;
+}
+.review-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 10px 0;
+}
+.review-details > p:first-of-type {
+  margin-top: 12px;
+}
+.review-details .actions {
+  margin-top: 12px;
+}
+.review-save {
+  margin: 24px 0;
+}
+.review-save > button {
+  width: 100%;
+}
+.review-save .fine {
+  text-align: center;
+  margin: 10px 0 0;
+}
+.review-footer {
+  border-top: 1px solid var(--surface-hover);
+  padding-top: 20px;
+}
+@media (max-width: 480px) {
+  .review-draft {
+    padding: 18px 16px;
+  }
+  .review-draft .actions,
+  .reprocess-options .actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+.review-role {
+  display: inline-block;
+  margin-left: 6px;
+  font:
+    400 0.8125rem/1.4 'Atkinson',
+    sans-serif;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+.review-draft .person-detail {
+  margin: 12px 0;
+  padding: 8px 12px;
+}

@@ -107,7 +107,7 @@ export function validateBackup(input: unknown): asserts input is Backup {
   object(input);
   assert(input.format === 'ahthatswho', 'Not an AhThatsWho backup');
   assert(
-    input.version === FORMAT_VERSION,
+    input.version === 1 || input.version === FORMAT_VERSION,
     Number(input.version) > FORMAT_VERSION
       ? 'This backup requires a newer AhThatsWho version'
       : 'Unsupported backup version',
@@ -169,8 +169,19 @@ export function validateBackup(input: unknown): asserts input is Backup {
     for (const k of ['householdId', 'contextId']) if (c.hints[k] !== undefined) id(c.hints[k]);
     for (const k of ['text', 'transcript']) if (c[k] !== undefined) string(c[k]);
     if (c.sourceRef !== undefined) string(c.sourceRef, 300);
-    if (c.proposal !== undefined) {
-      const p = c.proposal;
+    if (c.proposals !== undefined) {
+      array(c.proposals, 20);
+      assert(c.proposals.length > 0, 'Missing household drafts');
+    }
+    if (c.sourceChanged !== undefined)
+      assert(typeof c.sourceChanged === 'boolean', 'Invalid source state');
+    const drafts =
+      c.proposals !== undefined
+        ? (c.proposals as unknown[])
+        : c.proposal !== undefined
+          ? [c.proposal]
+          : [];
+    for (const p of drafts) {
       object(p);
       assert(
         ['create', 'update', 'ambiguous', 'multiple'].includes(String(p.action)),
@@ -195,6 +206,11 @@ export function validateBackup(input: unknown): asserts input is Backup {
       array(p.removals, 1000);
       p.removals.forEach((x) => string(x));
       if (p.model !== undefined) string(p.model, 200);
+      if (p.edited !== undefined) assert(typeof p.edited === 'boolean', 'Invalid edited flag');
+      if (p.sourceQuotes !== undefined) {
+        array(p.sourceQuotes, 100);
+        p.sourceQuotes.forEach((quote) => string(quote));
+      }
       assert(
         !['create', 'update'].includes(String(p.action)) || p.household,
         'Proposal has no household',
@@ -205,14 +221,24 @@ export function validateBackup(input: unknown): asserts input is Backup {
         'Invalid update proposal',
       );
     }
-    if (c.receipt !== undefined) {
-      object(c.receipt);
-      id(c.receipt.householdId);
-      id(c.receipt.versionId);
-      timestamp(c.receipt.appliedAt);
+    if (c.receipts !== undefined) {
+      array(c.receipts, 20);
+      assert(c.receipts.length > 0, 'Missing save receipts');
     }
-    assert(c.stage !== 'applied' || c.receipt, 'Applied capture has no receipt');
-    assert(c.stage !== 'proposed' || c.proposal, 'Missing proposal');
+    const receipts =
+      c.receipts !== undefined
+        ? (c.receipts as unknown[])
+        : c.receipt !== undefined
+          ? [c.receipt]
+          : [];
+    for (const receipt of receipts) {
+      object(receipt);
+      id(receipt.householdId);
+      id(receipt.versionId);
+      timestamp(receipt.appliedAt);
+    }
+    assert(c.stage !== 'applied' || receipts.length > 0, 'Applied capture has no receipt');
+    assert(c.stage !== 'proposed' || drafts.length > 0, 'Missing proposal');
   }
   unique(inbox.map((c) => String(c.id)));
   object(input.preferences);

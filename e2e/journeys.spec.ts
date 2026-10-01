@@ -77,7 +77,8 @@ test('capture survives reload, manual proposal applies once', async ({ page }) =
   await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Create new manually' }).click();
   await page.getByLabel('First name', { exact: true }).fill('Beatrice');
-  await page.getByRole('button', { name: 'Save & apply', exact: true }).click();
+  await page.getByRole('button', { name: 'Keep draft changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save 1 household', exact: true }).click();
   await expect(page.getByText('The names, together.')).toBeVisible();
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.getByRole('button', { name: /Beatrice/ })).toHaveCount(1);

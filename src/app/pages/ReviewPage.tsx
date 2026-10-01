@@ -4,8 +4,17 @@ import { db } from '../../data/db';
 import { Review } from '../../ui/Review';
 
 export default function ReviewPage() {
-  const { rows, setRows, contexts, setReviewEditing, report, activeCapture, navigate, act } =
-    usePage();
+  const {
+    rows,
+    setRows,
+    contexts,
+    setReviewEditing,
+    report,
+    setError,
+    activeCapture,
+    navigate,
+    act,
+  } = usePage();
   return (
     <Show
       when={activeCapture()}
@@ -27,6 +36,7 @@ export default function ReviewPage() {
               })
             }
             error={report}
+            clearError={() => setError('')}
             editing={setReviewEditing}
           />
         )}

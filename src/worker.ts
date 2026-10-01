@@ -9,6 +9,7 @@ import {
   MAX_GENERATION_BYTES,
   TRANSCRIPTION_PROMPT,
   responseBody,
+  type GenerationMode,
 } from './providers/openai-contract';
 
 interface Env extends DriveEnv {
@@ -71,7 +72,10 @@ function languages(values: unknown): string[] {
 
 function generationInput(value: unknown) {
   object(value);
-  assert(value.mode === undefined || value.mode === 'auto' || value.mode === 'new', 'Invalid mode');
+  assert(
+    value.mode === undefined || ['auto', 'new', 'single', 'multiple'].includes(String(value.mode)),
+    'Invalid mode',
+  );
   string(value.source, 20000);
   assert(value.source.trim(), 'Empty source');
   object(value.hints);
@@ -91,7 +95,7 @@ function generationInput(value: unknown) {
     entries.forEach(object);
   }
   // Only notebook data is accepted. OpenAI request options come from our code.
-  const mode = value.mode === 'new' ? 'new' : 'auto';
+  const mode = (value.mode || 'auto') as GenerationMode;
   if (mode === 'new') delete hints.householdId;
   return {
     source: value.source,
@@ -100,7 +104,7 @@ function generationInput(value: unknown) {
     candidates: mode === 'new' ? [] : value.candidates,
     contexts: value.contexts,
     nameIndex: mode === 'new' ? [] : value.nameIndex,
-    ...(mode === 'new' ? { mode: 'new' as const } : {}),
+    mode,
   };
 }
 

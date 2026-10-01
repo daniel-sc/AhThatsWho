@@ -78,14 +78,14 @@ it('pins the sponsored request and ignores client-supplied keys, models, tools a
   expect(body).toMatchObject({
     model: PARSER_MODEL,
     store: false,
-    max_output_tokens: 7000,
+    max_output_tokens: 16000,
     reasoning: { effort: 'low' },
   });
   expect(body.text.format.strict).toBe(true);
   expect(body.instructions).toContain('private name recognition notebook');
   expect(body.tools).toBeUndefined();
   expect(body.previous_response_id).toBeUndefined();
-  expect(JSON.parse(body.input)).toEqual(input);
+  expect(JSON.parse(body.input)).toEqual({ ...input, mode: 'auto' });
 });
 
 it.each([
@@ -189,3 +189,18 @@ it('checks only the pinned models without doing inference', async () => {
     `https://api.openai.com/v1/models/${TRANSCRIPTION_MODEL}`,
   ]);
 });
+
+it.each(['auto', 'single', 'multiple', 'new'] as const)(
+  'sets server-controlled reasoning for %s processing',
+  async (mode) => {
+    fetchMock.mockResolvedValue(Response.json({ status: 'completed', output: [] }));
+    const response = await worker.fetch(
+      generateRequest({ ...input, mode, reasoning: { effort: 'max' } }),
+      env,
+    );
+    expect(response.status).toBe(200);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.reasoning.effort).toBe(mode === 'multiple' ? 'medium' : 'low');
+    expect(JSON.parse(body.input).mode).toBe(mode);
+  },
+);

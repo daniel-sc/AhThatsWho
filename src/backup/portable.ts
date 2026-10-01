@@ -8,6 +8,8 @@ import {
   type HouseholdRecord,
   type Proposal,
   type Value,
+  captureDrafts,
+  captureReceipts,
 } from '../domain/types';
 import { parseBackup, validateBackup } from '../domain/integrity';
 import { db, getMeta, setMeta, backupState, type AhThatsWhoDB } from '../data/db';
@@ -65,6 +67,8 @@ export const cleanProposal = (p: Proposal): Proposal => ({
   model: p.model,
   generatedAt: p.generatedAt,
   removals: [...p.removals],
+  sourceQuotes: p.sourceQuotes && [...p.sourceQuotes],
+  edited: p.edited,
 });
 export function cleanCapture(c: Capture): Capture {
   const missing =
@@ -79,14 +83,15 @@ export function cleanCapture(c: Capture): Capture {
     hints: { householdId: c.hints.householdId, contextId: c.hints.contextId },
     stage: missing ? 'missing-source' : c.stage,
     audioMissing: c.kind === 'audio' ? true : undefined,
-    proposal: c.proposal && cleanProposal(c.proposal),
-    receipt: c.receipt
-      ? {
-          householdId: c.receipt.householdId,
-          versionId: c.receipt.versionId,
-          appliedAt: c.receipt.appliedAt,
-        }
+    proposals: captureDrafts(c).length ? captureDrafts(c).map(cleanProposal) : undefined,
+    receipts: captureReceipts(c).length
+      ? captureReceipts(c).map((r) => ({
+          householdId: r.householdId,
+          versionId: r.versionId,
+          appliedAt: r.appliedAt,
+        }))
       : undefined,
+    sourceChanged: c.sourceChanged,
     sourceRef: c.sourceRef,
   };
 }
@@ -147,19 +152,7 @@ export async function replaceData(input: Backup, d: AhThatsWhoDB = db) {
       await d.contexts.bulkPut(b.contexts);
       await d.households.bulkPut(b.households);
       await d.revisions.bulkPut(b.revisions);
-      for (const c of b.inbox) {
-        if (c.proposal?.action === 'update') {
-          const r = b.households.find((r) => r.household.id === c.proposal?.targetId);
-          if (!r || r.deletedAt || r.versionId !== c.proposal.baseVersion) {
-            delete c.proposal;
-            c.stage = c.transcript
-              ? 'transcript-ready'
-              : c.text
-                ? 'source-ready'
-                : 'missing-source';
-          }
-        }
-      }
+      // Keep stale drafts reviewable; apply validates every target against current data.
       await d.inbox.bulkPut(b.inbox);
       await setMeta('preferences', b.preferences, d);
       await setMeta(

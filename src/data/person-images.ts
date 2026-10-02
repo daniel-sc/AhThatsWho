@@ -1,9 +1,8 @@
 import { assert, imageAssetId } from '../domain/integrity';
 import { captureDrafts, type Backup } from '../domain/types';
+import { MAX_IMAGE_BYTES, MAX_PORTRAIT_SIZE } from '../domain/person-images';
 
 export const IMAGE_EXTENSION = 'jpg';
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-export const MAX_PORTRAIT_SIZE = 1024;
 const PREVIEW_SIZE = 192;
 const JPEG_QUALITY = 0.82;
 

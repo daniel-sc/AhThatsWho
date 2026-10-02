@@ -12,8 +12,8 @@ import {
   readImageAsset,
   validateImageAsset,
   IMAGE_EXTENSION,
-  MAX_IMAGE_BYTES,
 } from '../data/person-images';
+import { MAX_IMAGE_BYTES } from '../domain/person-images';
 import { sanitize } from './portable';
 
 export const ARCHIVE_LIMITS = {

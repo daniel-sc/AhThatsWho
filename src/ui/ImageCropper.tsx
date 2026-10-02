@@ -2,6 +2,7 @@ import { createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type Cropper from 'cropperjs';
 import { encodePortrait, ensureImageAsset } from '../data/person-images';
 import { ImageDialog } from './ImageDialog';
+import { MAX_PORTRAIT_SIZE } from '../domain/person-images';
 
 const template = `<cropper-canvas background>
   <cropper-image alt="Selected source photo"></cropper-image>
@@ -143,7 +144,10 @@ export function ImageCropper(props: {
       // Selection pixels are display pixels; convert back to source pixels before capping output.
       const side = Math.max(
         1,
-        Math.min(1024, Math.floor((selection.width * source!.naturalWidth) / image.width)),
+        Math.min(
+          MAX_PORTRAIT_SIZE,
+          Math.floor((selection.width * source!.naturalWidth) / image.width),
+        ),
       );
       const canvas = await selection.$toCanvas({ width: side, height: side });
       const asset = await encodePortrait(canvas);

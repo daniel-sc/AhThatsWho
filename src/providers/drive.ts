@@ -1,6 +1,7 @@
 import { db, getMeta, setMeta } from '../data/db';
 import type { BackupProvider, DriveHistory, DriveSession } from '../backup/contracts';
-import { BACKUP_IMAGE_MAX_BYTES } from '../backup/contracts';
+import { MAX_IMAGE_BYTES } from '../domain/person-images';
+import { readBoundedBlob } from '../backup/read-blob';
 import { validateImageAsset } from '../data/person-images';
 interface Installation {
   id: string;
@@ -181,27 +182,12 @@ async function imageRequest(
 }
 export async function downloadDriveImageAsset(history: string, id: string): Promise<Blob> {
   const response = await imageRequest(id, history);
-  if (Number(response.headers.get('Content-Length')) > BACKUP_IMAGE_MAX_BYTES)
-    throw new Error('Person image exceeds the 5 MiB limit.');
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('Person image is missing from Google Drive.');
-  const chunks: Uint8Array<ArrayBuffer>[] = [];
-  let bytes = 0;
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > BACKUP_IMAGE_MAX_BYTES) {
-        await reader.cancel();
-        throw new Error('Person image exceeds the 5 MiB limit.');
-      }
-      chunks.push(new Uint8Array(value));
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const image = new Blob(chunks, { type: 'image/jpeg' });
+  if (!response.body) throw new Error('Person image is missing from Google Drive.');
+  const image = await readBoundedBlob(
+    response,
+    MAX_IMAGE_BYTES,
+    new Error('Person image exceeds the 5 MiB limit.'),
+  );
   await validateImageAsset(id, image);
   return image;
 }
@@ -231,12 +217,6 @@ export function driveProvider(history: string, active: () => Promise<boolean>): 
         await imageRequest(id, undefined, image, guard);
       }
       await guard();
-    },
-    async loadImageAsset(id) {
-      await guard();
-      const image = await downloadDriveImageAsset(history, id);
-      await guard();
-      return image;
     },
     async list() {
       return (await ownSnapshots()).map((s) => ({ ...s, id: s.snapshotId || s.id }));

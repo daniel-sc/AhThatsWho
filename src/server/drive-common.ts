@@ -1,3 +1,4 @@
+import { readBoundedBlob } from '../backup/read-blob';
 export interface Statement {
   bind(...values: unknown[]): Statement;
   first<T = Record<string, unknown>>(): Promise<T | null>;
@@ -136,34 +137,12 @@ export async function bodyText(request: Request | Response, max: number) {
     reader.releaseLock();
   }
 }
-export async function bodyBlob(request: Request | Response, max: number) {
-  if (Number(request.headers.get('Content-Length')) > max)
-    throw new DriveError(
-      413,
-      `Person image exceeds the ${Math.round(max / 1024 / 1024)} MiB limit.`,
-    );
-  const reader = request.body?.getReader();
-  if (!reader) return new Blob([]);
-  const chunks: Uint8Array<ArrayBuffer>[] = [];
-  let bytes = 0;
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > max) {
-        await reader.cancel();
-        throw new DriveError(
-          413,
-          `Person image exceeds the ${Math.round(max / 1024 / 1024)} MiB limit.`,
-        );
-      }
-      chunks.push(new Uint8Array(value));
-    }
-    return new Blob(chunks, { type: 'image/jpeg' });
-  } finally {
-    reader.releaseLock();
-  }
+export function bodyBlob(request: Request | Response, max: number) {
+  return readBoundedBlob(
+    request,
+    max,
+    new DriveError(413, `Person image exceeds the ${Math.round(max / 1024 / 1024)} MiB limit.`),
+  );
 }
 export async function blobHash(blob: Blob) {
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())))

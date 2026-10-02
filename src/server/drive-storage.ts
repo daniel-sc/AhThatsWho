@@ -1,5 +1,6 @@
 import type { CloudSnapshot, DriveHistory } from '../backup/contracts';
-import { BACKUP_MAX_BYTES, BACKUP_IMAGE_MAX_BYTES } from '../backup/contracts';
+import { BACKUP_MAX_BYTES } from '../backup/contracts';
+import { MAX_IMAGE_BYTES } from '../domain/person-images';
 import { imageAssetIds } from '../data/person-images';
 import { retainedSnapshots } from '../backup/retention';
 import { parseBackup } from '../domain/integrity';
@@ -165,10 +166,7 @@ export class DriveStorage {
     // Drive's version increases for every change. Missing revision metadata never proves reuse safe.
     if (!force && f.version && cached?.file_id === f.id && cached.drive_version === f.version)
       return;
-    const image = await bodyBlob(
-      await this.request(`files/${f.id}?alt=media`),
-      BACKUP_IMAGE_MAX_BYTES,
-    );
+    const image = await bodyBlob(await this.request(`files/${f.id}?alt=media`), MAX_IMAGE_BYTES);
     if ((await blobHash(image)) !== asset)
       throw new DriveError(
         502,
@@ -201,7 +199,7 @@ export class DriveStorage {
   async saveAsset(asset: string, image: Blob) {
     requireValue(/^[a-f0-9]{64}$/.test(asset), 'Invalid person image identifier.');
     requireValue(
-      image.size > 0 && image.size <= BACKUP_IMAGE_MAX_BYTES,
+      image.size > 0 && image.size <= MAX_IMAGE_BYTES,
       'Person image exceeds the 5 MiB limit.',
     );
     requireValue(
@@ -438,7 +436,7 @@ export async function storageRoute(request: Request, env: DriveEnv) {
   if (asset && asset[2] && request.method === 'POST')
     return json({ verified: await storage.verifyAsset(asset[1]) });
   if (asset && !asset[2] && request.method === 'PUT')
-    return json(await storage.saveAsset(asset[1], await bodyBlob(request, BACKUP_IMAGE_MAX_BYTES)));
+    return json(await storage.saveAsset(asset[1], await bodyBlob(request, MAX_IMAGE_BYTES)));
   if (asset && !asset[2] && request.method === 'POST') {
     const history = new URL(request.url).searchParams.get('history');
     identifier(history);

@@ -16,6 +16,9 @@ export interface BackupProvider {
   save(id: string, json: string, hash: string): Promise<void>;
   load(id: string): Promise<string>;
   prune(keep: number): Promise<void>;
+  // Read local bytes only when the destination still needs this immutable asset.
+  ensureImageAsset?(id: string, read: () => Promise<Blob>): Promise<void>;
+  loadImageAsset?(id: string): Promise<Blob>;
 }
 export interface DriveSession {
   connected: boolean;
@@ -30,3 +33,4 @@ export interface DriveHistory {
   snapshots: CloudSnapshot[];
 }
 export const BACKUP_MAX_BYTES = 50 * 1024 * 1024;
+export const BACKUP_IMAGE_MAX_BYTES = 5 * 1024 * 1024;

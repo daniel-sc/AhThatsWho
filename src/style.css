@@ -621,7 +621,7 @@ main[data-screen='home'] {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.household > .preserve {
+.household-text > .preserve {
   margin-top: 22px;
 }
 main[data-screen='household'] .section-heading {
@@ -632,12 +632,17 @@ main[data-screen='household'] .section-heading h1 {
   margin: 0;
   letter-spacing: -0.025em;
 }
-main[data-screen='household'] section > .household > .names {
+main[data-screen='household'] section > .household > .household-text > .names {
   font-size: clamp(2rem, 5vw, 2.75rem);
   line-height: 1.15;
   margin-bottom: 10px;
 }
-main[data-screen='household'] section > .household > .names .last-name:not(:only-child) {
+main[data-screen='household']
+  section
+  > .household
+  > .household-text
+  > .names
+  .last-name:not(:only-child) {
   font-size: 1.25rem;
 }
 main[data-screen='household'] section > .fine {
@@ -1242,4 +1247,182 @@ mark {
 .review-draft .person-detail {
   margin: 12px 0;
   padding: 8px 12px;
+}
+
+/* Portrait dimensions stay reserved while the asset loads, preserving measured list rows. */
+.compact-household {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.household-text {
+  flex: 1;
+  min-width: 0;
+}
+.person-portrait {
+  display: block;
+  width: 88px;
+  height: 88px;
+  flex: 0 0 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.person-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-portrait {
+  order: 2;
+}
+.portrait-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  padding: 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.25;
+  font-weight: 400;
+}
+.portrait-button {
+  padding: 0;
+}
+.portrait-button:disabled {
+  opacity: 1;
+}
+.detail-portrait {
+  float: right;
+  width: 112px;
+  height: 112px;
+  margin: 0 0 12px 16px;
+}
+.person-detail::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+.person-image-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 20px;
+}
+.person-image-editor > div {
+  flex: 1;
+  min-width: 140px;
+}
+.person-image-editor .file-button {
+  margin: 0;
+}
+.person-image-editor p {
+  margin: 8px 0 0;
+}
+.person-image-editor .quiet {
+  display: block;
+  margin-top: 2px;
+}
+.image-dialog {
+  width: min(560px, calc(100% - 28px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  border-radius: 12px;
+  padding: 22px;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 16px 80px #0005;
+}
+.image-dialog::backdrop {
+  background: #161616ad;
+}
+.image-dialog-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.image-dialog-heading h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+.image-dialog-heading > button {
+  flex-shrink: 0;
+  width: 48px;
+  font-size: 1.25rem;
+}
+.enlarged-portrait {
+  display: block;
+  width: 100%;
+  max-height: 65dvh;
+  object-fit: contain;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+.crop-help {
+  font-size: 0.9375rem;
+  margin-bottom: 14px;
+}
+.crop-stage {
+  height: clamp(180px, 35dvh, 320px);
+  width: 100%;
+  background: #242424;
+  overflow: hidden;
+  border-radius: 6px;
+  touch-action: none;
+}
+.crop-stage cropper-canvas {
+  height: 100%;
+  width: 100%;
+}
+.crop-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.crop-controls button {
+  flex: 1;
+  padding: 10px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.crop-controls .quiet {
+  flex: 0;
+}
+.crop-actions {
+  margin: 14px 0 0;
+}
+.crop-actions > .primary {
+  flex: 1;
+}
+@media (max-width: 540px) {
+  .detail-portrait {
+    width: 88px;
+    height: 88px;
+    margin-left: 12px;
+  }
+  .image-dialog {
+    padding: 16px;
+  }
+}
+@media (max-width: 370px) {
+  .crop-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+  .crop-controls button {
+    font-size: 0.8125rem;
+    padding: 10px 8px;
+  }
 }

@@ -1,11 +1,14 @@
 import type { CloudSnapshot, DriveHistory } from '../backup/contracts';
-import { BACKUP_MAX_BYTES } from '../backup/contracts';
+import { BACKUP_MAX_BYTES, BACKUP_IMAGE_MAX_BYTES } from '../backup/contracts';
+import { imageAssetIds } from '../data/person-images';
 import { retainedSnapshots } from '../backup/retention';
 import { parseBackup } from '../domain/integrity';
 import {
   type DriveEnv,
   DriveError,
   bodyText,
+  bodyBlob,
+  blobHash,
   hash,
   hexHash,
   identifier,
@@ -18,10 +21,11 @@ interface DriveFile {
   id: string;
   name: string;
   size?: string;
+  version?: string;
   appProperties: Record<string, string>;
 }
 const API = 'https://www.googleapis.com/drive/v3';
-const FIELDS = 'id,name,size,appProperties';
+const FIELDS = 'id,name,size,version,appProperties';
 export class DriveStorage {
   constructor(
     private env: DriveEnv,
@@ -53,14 +57,18 @@ export class DriveStorage {
   private async namespace() {
     return (await hash(this.s.origin)).slice(0, 24);
   }
-  async list(): Promise<DriveFile[]> {
+  async list(
+    kind: 'metadata' | 'all' | 'asset' = 'metadata',
+    history?: string,
+    asset?: string,
+  ): Promise<DriveFile[]> {
     const files: DriveFile[] = [];
     let page: string | undefined;
     do {
       const params = new URLSearchParams({
         spaces: 'appDataFolder',
         pageSize: '1000',
-        q: `trashed = false and appProperties has { key='app' and value='ahthatswho' } and appProperties has { key='origin' and value='${await this.namespace()}' }`,
+        q: `trashed = false and appProperties has { key='app' and value='ahthatswho' } and appProperties has { key='origin' and value='${await this.namespace()}' }${kind === 'metadata' ? " and (appProperties has { key='kind' and value='history' } or appProperties has { key='kind' and value='snapshot' })" : kind === 'asset' ? " and appProperties has { key='kind' and value='asset' }" : ''}${history ? ` and appProperties has { key='history' and value='${history}' }` : ''}${asset ? ` and appProperties has { key='asset' and value='${asset}' }` : ''}`,
         fields: `nextPageToken,files(${FIELDS})`,
         ...(page ? { pageToken: page } : {}),
       });
@@ -129,6 +137,98 @@ export class DriveStorage {
       throw new DriveError(502, 'Backup verification failed. Choose another snapshot.');
     return text;
   }
+  private async assetFile(history: string, asset: string) {
+    identifier(history);
+    requireValue(/^[a-f0-9]{64}$/.test(asset), 'Invalid person image identifier.');
+    const namespace = await this.namespace();
+    return (await this.list('asset', history, asset)).find(
+      (f) =>
+        f.appProperties.kind === 'asset' &&
+        f.appProperties.history === history &&
+        f.appProperties.asset === asset &&
+        f.appProperties.origin === namespace &&
+        f.appProperties.app === 'ahthatswho',
+    );
+  }
+  private async verifyAssetFile(
+    f: DriveFile,
+    asset: string,
+    force = false,
+  ): Promise<Blob | undefined> {
+    const args = [this.s.origin, this.s.account_id, f.appProperties.history, asset];
+    const cached = await this.env
+      .BACKUP_DB!.prepare(
+        'SELECT file_id,drive_version FROM drive_asset_verifications WHERE origin=? AND account_id=? AND history=? AND asset=?',
+      )
+      .bind(...args)
+      .first<{ file_id: string; drive_version: string }>();
+    // Drive's version increases for every change. Missing revision metadata never proves reuse safe.
+    if (!force && f.version && cached?.file_id === f.id && cached.drive_version === f.version)
+      return;
+    const image = await bodyBlob(
+      await this.request(`files/${f.id}?alt=media`),
+      BACKUP_IMAGE_MAX_BYTES,
+    );
+    if ((await blobHash(image)) !== asset)
+      throw new DriveError(
+        502,
+        'Person image verification failed. Restore cannot replace your notebook.',
+      );
+    const latest = await this.file(f.id);
+    if (latest.version !== f.version)
+      throw new DriveError(502, 'Person image changed during verification. Retry the backup.');
+    if (f.version)
+      await this.env
+        .BACKUP_DB!.prepare(
+          'INSERT OR REPLACE INTO drive_asset_verifications(origin,account_id,history,asset,file_id,drive_version) VALUES(?,?,?,?,?,?)',
+        )
+        .bind(...args, f.id, f.version)
+        .run();
+    return image;
+  }
+  async verifyAsset(asset: string) {
+    const f = await this.assetFile(await historyId(this.s), asset);
+    if (!f) return false;
+    await this.verifyAssetFile(f, asset);
+    return true;
+  }
+  async loadAsset(history: string, asset: string) {
+    const f = await this.assetFile(history, asset);
+    if (!f)
+      throw new DriveError(404, 'A required person image is missing from this backup history.');
+    return (await this.verifyAssetFile(f, asset, true))!;
+  }
+  async saveAsset(asset: string, image: Blob) {
+    requireValue(/^[a-f0-9]{64}$/.test(asset), 'Invalid person image identifier.');
+    requireValue(
+      image.size > 0 && image.size <= BACKUP_IMAGE_MAX_BYTES,
+      'Person image exceeds the 5 MiB limit.',
+    );
+    requireValue(
+      (await blobHash(image)) === asset,
+      'Person image content does not match its identifier.',
+    );
+    const h = await historyId(this.s);
+    let f = await this.assetFile(h, asset);
+    if (!f) {
+      const id = await this.allocatedId(`asset:${asset}`, asset);
+      await this.create(
+        id,
+        `${asset}.jpg`,
+        { kind: 'asset', asset, digest: asset },
+        image,
+        'image/jpeg',
+      );
+      f = await this.file(id);
+      requireValue(
+        f.appProperties.kind === 'asset' &&
+          f.appProperties.history === h &&
+          f.appProperties.asset === asset,
+      );
+    }
+    await this.verifyAssetFile(f, asset, true);
+    return { verified: true };
+  }
   private async allocatedId(snapshot: string, digest: string) {
     const h = await historyId(this.s);
     const db = this.env.BACKUP_DB!;
@@ -166,14 +266,15 @@ export class DriveStorage {
     id: string,
     name: string,
     properties: Record<string, string>,
-    content: string,
+    content: string | Blob,
+    mimeType = 'application/json',
   ) {
     const boundary = `atw_${crypto.randomUUID()}`;
     const metadata = {
       id,
       name,
       parents: ['appDataFolder'],
-      mimeType: 'application/json',
+      mimeType,
       appProperties: {
         app: 'ahthatswho',
         origin: await this.namespace(),
@@ -182,7 +283,7 @@ export class DriveStorage {
       },
     };
     const body = new Blob([
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n`,
+      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
       content,
       `\r\n--${boundary}--`,
     ]);
@@ -232,8 +333,15 @@ export class DriveStorage {
       throw new DriveError(400, 'Invalid portable notebook backup.');
     }
     const digest = await hexHash(content);
-    const id = await this.allocatedId(snapshotId, digest);
     const h = await historyId(this.s);
+    // Never publish a snapshot whose image dependencies have not been verified in this history.
+    for (const asset of imageAssetIds(backup)) {
+      const f = await this.assetFile(h, asset);
+      if (!f)
+        throw new DriveError(409, 'A person image has not finished backing up. Retry the backup.');
+      await this.verifyAssetFile(f, asset);
+    }
+    const id = await this.allocatedId(snapshotId, digest);
     if (
       !(await this.list()).some(
         (f) => f.appProperties.history === h && f.appProperties.kind === 'history',
@@ -284,6 +392,12 @@ export class DriveStorage {
       .BACKUP_DB!.prepare('DELETE FROM drive_uploads WHERE origin=? AND account_id=? AND file_id=?')
       .bind(this.s.origin, this.s.account_id, id)
       .run();
+    await this.env
+      .BACKUP_DB!.prepare(
+        'DELETE FROM drive_asset_verifications WHERE origin=? AND account_id=? AND file_id=?',
+      )
+      .bind(this.s.origin, this.s.account_id, id)
+      .run();
   }
   async deleteHistory(id: string) {
     identifier(id);
@@ -292,7 +406,7 @@ export class DriveStorage {
         409,
         'This is the current installation. Disconnect it before deleting its history from another installation.',
       );
-    for (const f of await this.list())
+    for (const f of await this.list('all', id))
       if (f.appProperties.history === id) await this.removeFile(f.id);
   }
 }
@@ -319,6 +433,24 @@ export async function storageRoute(request: Request, env: DriveEnv) {
     identifier(input.id);
     await storage.deleteHistory(input.id);
     return json({ deleted: true });
+  }
+  const asset = path.match(/^\/api\/backup\/assets\/([a-f0-9]{64})(\/verify)?$/);
+  if (asset && asset[2] && request.method === 'POST')
+    return json({ verified: await storage.verifyAsset(asset[1]) });
+  if (asset && !asset[2] && request.method === 'PUT')
+    return json(await storage.saveAsset(asset[1], await bodyBlob(request, BACKUP_IMAGE_MAX_BYTES)));
+  if (asset && !asset[2] && request.method === 'POST') {
+    const history = new URL(request.url).searchParams.get('history');
+    identifier(history);
+    const image = await storage.loadAsset(history, asset[1]);
+    return new Response(image, {
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Content-Length': String(image.size),
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
   }
   const match = path.match(/^\/api\/backup\/snapshots\/([a-zA-Z0-9_-]{16,128})$/);
   if (match && request.method === 'POST')

@@ -104,4 +104,4 @@ For Google OAuth branding, use the production privacy URL after the relevant bui
 
 No private source note belongs in this repository. The migration UI stages source lines in Inbox, retains source references, rejects repeat batches, and leaves each application to review. Keep separately provided private review files outside version control and public artifacts. Export before replacement, review every line, and verify cloud backup and clean-install recovery.
 
-Legacy exports can be imported after changing their top-level `format` value to `ahthatswho`. The existing Apple container remains `iCloud.me.cbfp.namecue`, with record type `AhThatsWhoSnapshot`. See [deployment](deployment.md) for origin changes and CloudKit configuration.
+Legacy exports can be imported after changing their top-level `format` value to `ahthatswho`. See [deployment](deployment.md) for origin changes, OPFS image storage and Drive configuration. iCloud integration is retired without deleting existing remote data.

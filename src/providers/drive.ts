@@ -1,5 +1,7 @@
 import { db, getMeta, setMeta } from '../data/db';
 import type { BackupProvider, DriveHistory, DriveSession } from '../backup/contracts';
+import { BACKUP_IMAGE_MAX_BYTES } from '../backup/contracts';
+import { validateImageAsset } from '../data/person-images';
 interface Installation {
   id: string;
   device: string;
@@ -40,9 +42,15 @@ export async function installation(): Promise<Installation> {
     return value;
   });
 }
-export async function driveRequest<T>(path: string, body?: unknown, method = 'POST'): Promise<T> {
+export async function driveRequest<T>(
+  path: string,
+  body?: unknown,
+  method = 'POST',
+  guard?: () => Promise<void>,
+): Promise<T> {
   const local = await installation();
   const token = await getMeta<string>('driveToken', '');
+  await guard?.();
   const response = await fetch(`/api/backup/${path}`, {
     method,
     headers: {
@@ -121,9 +129,10 @@ export async function renameDrive(label: string) {
 }
 export const deleteDriveHistory = (id: string) => driveRequest('delete-history', { id });
 // Preserve exact uploaded bytes for checksum verification and portable downloads.
-async function rawSnapshot(id: string) {
+async function rawSnapshot(id: string, guard?: () => Promise<void>) {
   const local = await installation(),
     token = await getMeta<string>('driveToken', '');
+  await guard?.();
   const response = await fetch(`/api/backup/snapshots/${id}`, {
     method: 'POST',
     headers: {
@@ -140,6 +149,62 @@ async function rawSnapshot(id: string) {
   return response.text();
 }
 export { rawSnapshot as downloadDriveSnapshot };
+async function imageRequest(
+  id: string,
+  history?: string,
+  image?: Blob,
+  guard?: () => Promise<void>,
+) {
+  if (!/^[a-f0-9]{64}$/.test(id)) throw new Error('Invalid person image identifier.');
+  const local = await installation(),
+    token = await getMeta<string>('driveToken', '');
+  await guard?.();
+  const response = await fetch(
+    `/api/backup/assets/${id}${history ? `?history=${encodeURIComponent(history)}` : ''}`,
+    {
+      method: image ? 'PUT' : 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-AhThatsWho': 'backup',
+        'X-Backup-Device': local.device,
+        ...(image ? { 'Content-Type': 'image/jpeg' } : {}),
+      },
+      body: image,
+      cache: 'no-store',
+    },
+  );
+  if (!response.ok) {
+    const data = await response.json();
+    throw new DriveClientError(data.error || 'Could not recover person image.', response.status);
+  }
+  return response;
+}
+export async function downloadDriveImageAsset(history: string, id: string): Promise<Blob> {
+  const response = await imageRequest(id, history);
+  if (Number(response.headers.get('Content-Length')) > BACKUP_IMAGE_MAX_BYTES)
+    throw new Error('Person image exceeds the 5 MiB limit.');
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Person image is missing from Google Drive.');
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > BACKUP_IMAGE_MAX_BYTES) {
+        await reader.cancel();
+        throw new Error('Person image exceeds the 5 MiB limit.');
+      }
+      chunks.push(new Uint8Array(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const image = new Blob(chunks, { type: 'image/jpeg' });
+  await validateImageAsset(id, image);
+  return image;
+}
 export function driveProvider(history: string, active: () => Promise<boolean>): BackupProvider {
   let verifiedId: string | undefined;
   async function guard() {
@@ -150,6 +215,29 @@ export function driveProvider(history: string, active: () => Promise<boolean>): 
     return (await driveHistories()).find((h) => h.id === history)?.snapshots || [];
   }
   return {
+    async ensureImageAsset(id, read) {
+      await guard();
+      const result = await driveRequest<{ verified: boolean }>(
+        `assets/${id}/verify`,
+        undefined,
+        'POST',
+        guard,
+      );
+      await guard();
+      if (!result.verified) {
+        const image = await read();
+        await guard();
+        await validateImageAsset(id, image);
+        await imageRequest(id, undefined, image, guard);
+      }
+      await guard();
+    },
+    async loadImageAsset(id) {
+      await guard();
+      const image = await downloadDriveImageAsset(history, id);
+      await guard();
+      return image;
+    },
     async list() {
       return (await ownSnapshots()).map((s) => ({ ...s, id: s.snapshotId || s.id }));
     },
@@ -157,6 +245,7 @@ export function driveProvider(history: string, active: () => Promise<boolean>): 
       await guard();
       const local = await installation(),
         token = await getMeta<string>('driveToken', '');
+      await guard();
       const response = await fetch(`/api/backup/snapshots/${id}`, {
         method: 'PUT',
         headers: {
@@ -175,13 +264,14 @@ export function driveProvider(history: string, active: () => Promise<boolean>): 
       await guard();
       const s = (await ownSnapshots()).find((v) => v.snapshotId === id || v.id === id);
       if (!s) throw new Error('Backup not found. Retry the upload.');
-      const content = await rawSnapshot(s.id);
+      const content = await rawSnapshot(s.id, guard);
+      await guard();
       verifiedId = s.id;
       return content;
     },
     async prune() {
       await guard();
-      if (verifiedId) await driveRequest('prune', { verifiedId });
+      if (verifiedId) await driveRequest('prune', { verifiedId }, 'POST', guard);
     },
   };
 }

@@ -119,6 +119,36 @@ it('requests strict output without provider storage and binds the supplied base 
   expect(payload.store).toBe(false);
   expect(payload.text.format.strict).toBe(true);
 });
+it('keeps image references private and preserves them by identity through reordered AI updates', async () => {
+  const b = fixtures(1);
+  const r = b.households[0];
+  r.household.people[0].imageAssetId = 'a'.repeat(64);
+  r.household.people[1].imageAssetId = 'b'.repeat(64);
+  const household = structuredClone(r.household);
+  household.people.reverse();
+  household.people[0].imageAssetId = 'c'.repeat(64);
+  delete household.people[1].imageAssetId;
+  fetchMock.mockResolvedValue(
+    reply({
+      action: 'update',
+      targetId: r.household.id,
+      household,
+      candidateIds: [],
+      contextSuggestions: [],
+      reason: 'Text update',
+    }),
+  );
+  const [draft] = await generate(capture(), b.households, b.contexts);
+  expect(draft.household?.people.map((p) => p.imageAssetId)).toEqual([
+    'b'.repeat(64),
+    'a'.repeat(64),
+  ]);
+  expect(draft.baseVersion).toBe(r.versionId);
+  const requestBody = fetchMock.mock.calls[0][1].body as string;
+  expect(requestBody).not.toContain('imageAssetId');
+  expect(requestBody).not.toContain('a'.repeat(64));
+  expect(requestBody).not.toContain('b'.repeat(64));
+});
 it.each([
   ['unknown-person', 'person'],
   ['unknown-household', 'target'],

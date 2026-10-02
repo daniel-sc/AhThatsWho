@@ -13,6 +13,9 @@ export function id(x: unknown): asserts x is string {
   string(x, 128);
   assert(x.length > 0 && /^[a-zA-Z0-9_.:-]+$/.test(x), 'Invalid ID');
 }
+export function imageAssetId(x: unknown): asserts x is string {
+  assert(typeof x === 'string' && /^[a-f0-9]{64}$/.test(x), 'Invalid person image asset ID');
+}
 function array(x: unknown, max = 100000): asserts x is unknown[] {
   assert(Array.isArray(x) && x.length <= max, 'Invalid or excessively large list');
 }
@@ -72,6 +75,7 @@ export function validateHousehold(h: unknown, contexts: Set<string>): asserts h 
   for (const p of h.people) {
     object(p);
     id(p.id);
+    if (p.imageAssetId !== undefined) imageAssetId(p.imageAssetId);
     ids.push(p.id);
     for (const k of ['firstName', 'lastName', 'ageNote']) if (p[k] !== undefined) value(p[k]);
     if (p.birthDate !== undefined) value(p.birthDate, true);
@@ -107,7 +111,7 @@ export function validateBackup(input: unknown): asserts input is Backup {
   object(input);
   assert(input.format === 'ahthatswho', 'Not an AhThatsWho backup');
   assert(
-    input.version === 1 || input.version === FORMAT_VERSION,
+    input.version === 1 || input.version === 2 || input.version === FORMAT_VERSION,
     Number(input.version) > FORMAT_VERSION
       ? 'This backup requires a newer AhThatsWho version'
       : 'Unsupported backup version',
@@ -241,6 +245,22 @@ export function validateBackup(input: unknown): asserts input is Backup {
     assert(c.stage !== 'proposed' || drafts.length > 0, 'Missing proposal');
   }
   unique(inbox.map((c) => String(c.id)));
+  if (Number(input.version) < 3) {
+    const allHouseholds = [
+      ...households.map((r) => r.household as Household),
+      ...revisions.map((r) => (r.record as { household: Household }).household),
+      ...inbox.flatMap((c) =>
+        (
+          (c.proposals as { household?: Household }[] | undefined) ??
+          (c.proposal ? [c.proposal as { household?: Household }] : [])
+        ).flatMap((p) => (p.household ? [p.household] : [])),
+      ),
+    ];
+    assert(
+      !allHouseholds.some((h) => h.people.some((p) => p.imageAssetId)),
+      'Person images require backup format version 3',
+    );
+  }
   object(input.preferences);
   assert(typeof input.preferences.resume === 'boolean', 'Invalid preferences');
   if (input.preferences.recognitionLanguages !== undefined) {
@@ -259,6 +279,7 @@ export function semantic(h: Household) {
     id: h.id,
     people: h.people.map((p) => ({
       id: p.id,
+      imageAssetId: p.imageAssetId,
       firstName: p.firstName,
       lastName: p.lastName,
       role: p.role,

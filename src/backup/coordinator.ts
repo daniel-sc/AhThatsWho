@@ -3,6 +3,8 @@ import { digest, snapshot } from './portable';
 import { now, uuid } from '../domain/types';
 import type { BackupProvider } from './contracts';
 import { assert } from '../domain/integrity';
+import { parseBackup } from '../domain/integrity';
+import { imageAssetIds, readImageAsset } from '../data/person-images';
 export class BackupCoordinator {
   private running = false;
   constructor(
@@ -80,6 +82,16 @@ export class BackupCoordinator {
           return true;
         });
         if (!retained) return;
+      }
+      if ((await backupState(this.d)).generation !== generation) return;
+      const assets = imageAssetIds(parseBackup(pending.json));
+      assert(
+        !assets.length || this.provider.ensureImageAsset,
+        'This backup destination cannot store person images',
+      );
+      for (const id of assets) {
+        if ((await backupState(this.d)).generation !== generation) return;
+        await this.provider.ensureImageAsset!(id, () => readImageAsset(id));
       }
       if ((await backupState(this.d)).generation !== generation) return;
       const existing = (await this.provider.list()).find((s) => s.id === pending!.id);

@@ -15,12 +15,13 @@ import {
 import {
   deleteDriveHistory,
   downloadDriveSnapshot,
+  downloadDriveImageAsset,
   driveHistories,
   installation,
   renameDrive,
 } from '../providers/drive';
 import type { DriveHistory } from '../backup/contracts';
-import { importPreview, download } from '../backup/portable';
+import { importPreview } from '../backup/portable';
 import type { Backup, BackupState } from '../domain/types';
 export function DriveBackup(props: {
   state: BackupState | undefined;
@@ -38,6 +39,19 @@ export function DriveBackup(props: {
   onCleanup(() => codeSubscription.unsubscribe());
   const [listed, setListed] = createSignal(false);
   let loaded = '';
+  async function restore(snapshotId: string, historyId: string) {
+    const notebook = importPreview(await downloadDriveSnapshot(snapshotId));
+    const { imageAssetIds, ensureImageAsset } = await import('../data/person-images');
+    for (const id of imageAssetIds(notebook)) {
+      await ensureImageAsset(id, await downloadDriveImageAsset(historyId, id));
+    }
+    props.review(notebook);
+  }
+  async function exportSnapshot(snapshotId: string, historyId: string) {
+    const notebook = importPreview(await downloadDriveSnapshot(snapshotId));
+    const { createArchive, downloadArchive } = await import('../backup/archive');
+    downloadArchive(await createArchive(notebook, (id) => downloadDriveImageAsset(historyId, id)));
+  }
   async function list() {
     const value = await driveHistories();
     setHistories(value);
@@ -66,9 +80,9 @@ export function DriveBackup(props: {
         Google account does not sync your notebooks.
       </p>
       <p class="fine">
-        Backups pass through our server to your private Google Drive app storage. Our server keeps
-        connection credentials, but does not save notebook contents. Browse cloud backups here, or
-        export a file for independent recovery.
+        Notebook snapshots and cropped portraits pass through our server to your private Google
+        Drive app storage. Our server keeps connection credentials, but does not save notebook
+        contents. Browse cloud backups here, or export a file for independent recovery.
       </p>
       <Show
         when={backupTarget() === 'drive' && googleSession().connected}
@@ -188,7 +202,8 @@ export function DriveBackup(props: {
         </div>
         <p class="fine">
           Keeps the latest ten backups plus one per day for 30 days in each history. Older
-          installation histories stay until you delete them.
+          installation histories stay until you delete them. Image assets remain in each history for
+          recovery.
         </p>
         <Show when={listed() && histories().length === 0}>
           <p>No backup histories found in this account.</p>
@@ -238,19 +253,13 @@ export function DriveBackup(props: {
                     </span>
                     <button
                       disabled={props.busy}
-                      onClick={() =>
-                        void props.act(async () =>
-                          props.review(importPreview(await downloadDriveSnapshot(s.id))),
-                        )
-                      }
+                      onClick={() => void props.act(async () => restore(s.id, h.id))}
                     >
                       Restore
                     </button>
                     <button
                       disabled={props.busy}
-                      onClick={() =>
-                        void props.act(async () => download(await downloadDriveSnapshot(s.id)))
-                      }
+                      onClick={() => void props.act(async () => exportSnapshot(s.id, h.id))}
                     >
                       Download
                     </button>

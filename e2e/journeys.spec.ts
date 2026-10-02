@@ -93,7 +93,7 @@ test('import cancel, replacement and local safety recovery', async ({ page }) =>
     buffer: Buffer.from(JSON.stringify(fixtures(1))),
   });
   await expect(page.getByRole('region', { name: 'Import preview' })).toBeFocused();
-  await expect(page.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Export backup ZIP' })).toBeDisabled();
   await page.getByRole('button', { name: 'Cancel import' }).click();
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.locator('.household-row')).toHaveCount(3);

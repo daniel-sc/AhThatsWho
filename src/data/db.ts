@@ -1,6 +1,5 @@
 import Dexie, { type Table } from 'dexie';
 import {
-  FORMAT_VERSION,
   now,
   uuid,
   type AudioRecord,
@@ -22,7 +21,8 @@ export class AhThatsWhoDB extends Dexie {
   meta!: Table<{ key: string; value: unknown }, string>;
   constructor(name = 'ahthatswho') {
     super(name);
-    this.version(FORMAT_VERSION).stores({
+    // Portable format changes do not change the IndexedDB schema.
+    this.version(2).stores({
       households: 'household.id,updatedAt,deletedAt',
       contexts: 'id',
       revisions: 'id,record.household.id',

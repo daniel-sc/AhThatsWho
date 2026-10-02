@@ -6,20 +6,9 @@ import { getAIMode, setAIMode, type AIMode } from '../providers/openai';
 import type { Preferences } from '../domain/types';
 import { createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { db, getMeta, setMeta, backupState, saveContext, deleteContext, dirty } from '../data/db';
-import { snapshot, download, importPreview, replaceData, recoverSafety } from '../backup/portable';
+import { snapshot, replaceData, recoverSafety } from '../backup/portable';
 import { uuid, type Backup, type Context, type BackupState } from '../domain/types';
-import {
-  cloudStatus,
-  cloudSignedIn,
-  provider,
-  connectICloud,
-  backupTarget,
-  refreshAuth,
-  authorizeBackup,
-  retryBackup,
-} from '../app/backup';
-import type { CloudConfig, CloudSnapshot } from '../providers/cloudkit';
-import { DEFAULT_CLOUD_CONFIG, currentCloudConfig } from '../app/cloud-config';
+import { cloudStatus, backupTarget, refreshAuth } from '../app/backup';
 export function Settings(props: {
   installation: ReturnType<typeof createInstallation>;
   returnToCapture?: () => void;
@@ -37,8 +26,6 @@ export function Settings(props: {
   const [resume, setResume] = createSignal(true);
   const [preview, setPreview] = createSignal<Backup>();
   const [state, setState] = createSignal<BackupState>();
-  const [clouds, setClouds] = createSignal<CloudSnapshot[]>([]);
-  const [config, setConfig] = createSignal<CloudConfig>({ ...DEFAULT_CLOUD_CONFIG });
   const [busy, setBusy] = createSignal(false);
   const [info, setInfo] = createSignal('');
   const [privateNote, setPrivateNote] = createSignal('');
@@ -49,15 +36,9 @@ export function Settings(props: {
     setResume(preferences.resume);
     setLanguages(preferences.recognitionLanguages ?? defaultRecognitionLanguages);
     setState(await backupState());
-    const savedConfig = await getMeta<CloudConfig | undefined>('cloudConfig', undefined);
-    setConfig(currentCloudConfig(savedConfig));
     const api = await import('../providers/openai');
     setKeyStatus(api.getKey() ? 'Key available on this device' : 'No key configured');
-    if (savedConfig?.container || backupTarget() === 'drive')
-      void act(async () => {
-        await refreshAuth();
-        if (cloudSignedIn() && backupTarget() === 'icloud') await listCloud();
-      });
+    if (backupTarget() === 'drive') void act(refreshAuth);
   });
   async function act(fn: () => Promise<unknown>) {
     setInfo('');
@@ -77,10 +58,6 @@ export function Settings(props: {
       await setMeta('preferences', { ...preferences, ...changes });
       await dirty();
     });
-  }
-  async function listCloud() {
-    if (!provider()) throw new Error('Connect backup storage first');
-    setClouds(await provider()!.list());
   }
   function review(b: Backup) {
     setPreview(b);
@@ -299,146 +276,34 @@ export function Settings(props: {
             Uploads run while AhThatsWho is open. Untranscribed audio remains local only.
           </p>
           <DriveBackup state={state()} busy={busy()} act={act} review={review} />
-          <h3>iCloud</h3>
-          <Show
-            when={backupTarget() !== 'drive'}
-            fallback={<p class="fine">Disconnect Google Drive before choosing iCloud.</p>}
-          >
-            <details>
-              <summary>CloudKit configuration</summary>
-              <label>
-                Container ID
-                <input
-                  value={config().container}
-                  onInput={(e) => setConfig({ ...config(), container: e.currentTarget.value })}
-                  placeholder="iCloud.com.example.AhThatsWho"
-                />
-              </label>
-              <label>
-                Website API token
-                <input
-                  type="password"
-                  value={config().apiToken}
-                  onInput={(e) => setConfig({ ...config(), apiToken: e.currentTarget.value })}
-                />
-              </label>
-              <label>
-                Environment
-                <select
-                  value={config().environment}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config(),
-                      environment: e.currentTarget.value as CloudConfig['environment'],
-                    })
-                  }
-                >
-                  <option value="production">Production</option>
-                  <option value="development">Development</option>
-                </select>
-              </label>
-              <p class="fine">
-                CloudKit loads Apple's sign-in script. Scripts on this origin can access a
-                remembered OpenAI key. Configuration changes require reopening the app.
-              </p>
-            </details>
-            <button
-              disabled={busy()}
-              onClick={() =>
-                void act(async () => {
-                  await connectICloud(config());
-                  setInfo('Use the Apple sign-in control to connect your private iCloud backups.');
-                })
-              }
-            >
-              Connect iCloud
-            </button>
-            <div id="apple-sign-in" />
-            <div id="apple-sign-out" />
-            <div class="actions">
-              <button onClick={() => void act(refreshAuth)}>Refresh sign-in</button>
-              <button disabled={!cloudSignedIn() || busy()} onClick={() => void act(retryBackup)}>
-                Retry backup now
-              </button>
-              <button disabled={!cloudSignedIn() || busy()} onClick={() => void act(listCloud)}>
-                List cloud snapshots
-              </button>
-            </div>
-            <Show when={!state()?.authoritative && cloudSignedIn()}>
-              <p class="notice">
-                Before automatic backup begins, check existing snapshots. Restore one or explicitly
-                use your current local notebook.
-              </p>
-              <button
-                onClick={() =>
-                  void act(async () => {
-                    await listCloud();
-                    if (
-                      confirm(
-                        'Use the current local notebook as the authoritative dataset for new backups? Existing snapshots remain subject to the newest-10 retention policy.',
-                      )
-                    ) {
-                      await authorizeBackup();
-                      setInfo('Automatic backup enabled for this notebook.');
-                    }
-                  })
-                }
-              >
-                Start fresh / use this notebook
-              </button>
-            </Show>
-            <For each={clouds()}>
-              {(s) => (
-                <div class="snapshot-row">
-                  <span>
-                    {new Date(s.exportedAt).toLocaleString()}
-                    <small>
-                      {Math.ceil(s.bytes / 1024)} KB · format {s.version}
-                    </small>
-                  </span>
-                  <button
-                    disabled={busy()}
-                    onClick={() =>
-                      void act(async () => {
-                        const json = await provider()!.load(s.id);
-                        review(importPreview(json));
-                      })
-                    }
-                  >
-                    Restore
-                  </button>
-                  <button
-                    disabled={busy()}
-                    onClick={() => void act(async () => download(await provider()!.load(s.id)))}
-                  >
-                    Download
-                  </button>
-                </div>
-              )}
-            </For>
-          </Show>
         </div>
         <div class="settings-block">
           <h2>Export & recovery</h2>
           <div class="actions">
             <button
+              disabled={busy()}
               onClick={() =>
-                void act(async () => download(JSON.stringify(await snapshot(), null, 2)))
+                void act(async () => {
+                  const { createArchive, downloadArchive } = await import('../backup/archive');
+                  downloadArchive(await createArchive(await snapshot()));
+                  setInfo('Backup file exported with saved portraits and History.');
+                })
               }
             >
-              Export JSON
+              Export backup ZIP
             </button>
             <label class="file-button">
-              Import JSON
+              Import backup file
               <input
                 type="file"
-                accept="application/json,.json"
+                disabled={busy()}
+                accept="application/zip,application/json,.zip,.json"
                 onChange={(e) => {
                   const file = e.currentTarget.files?.[0];
                   if (file)
                     void act(async () => {
-                      if (file.size > 50 * 1024 * 1024) throw new Error('File exceeds 50 MB');
-                      review(importPreview(await file.text()));
+                      const { readArchive } = await import('../backup/archive');
+                      review(await readArchive(file));
                     });
                   e.currentTarget.value = '';
                 }}
@@ -625,7 +490,7 @@ export function Settings(props: {
           </p>
           <p>
             Names, in context. No analytics. Your notebook lives on this device, with optional
-            Google Drive or private iCloud backups.
+            Google Drive backups and portable file recovery.
           </p>
           <p>
             AhThatsWho is open source under the MIT license. Explore the code on{' '}

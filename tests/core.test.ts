@@ -23,7 +23,7 @@ import {
   updateTranscript,
 } from '../src/capture/application';
 import { BackupCoordinator } from '../src/backup/coordinator';
-import type { BackupProvider } from '../src/providers/cloudkit';
+import type { BackupProvider } from '../src/backup/contracts';
 import { now, uuid, type Capture } from '../src/domain/types';
 const databases: AhThatsWhoDB[] = [];
 function database() {
@@ -76,6 +76,24 @@ describe('household search', () => {
   });
 });
 describe('transactions and history', () => {
+  it('treats an image-only change as a revision and restores its original association', async () => {
+    const d = database();
+    const b = await seed(d);
+    const original = b.households[0];
+    const household = structuredClone(original.household);
+    household.people[0].imageAssetId = 'a'.repeat(64);
+    const withImage = await saveHousehold(household, original.versionId, undefined, d);
+    delete household.people[0].imageAssetId;
+    const removed = await saveHousehold(household, withImage.versionId, undefined, d);
+    const revisions = await d.revisions.toArray();
+    expect(revisions).toHaveLength(2);
+    const imageRevision = revisions.find((r) => r.record.versionId === withImage.versionId)!;
+    expect(imageRevision.record.household.people[0].imageAssetId).toBe('a'.repeat(64));
+    const restored = await restoreRevision(imageRevision, removed.versionId, d);
+    expect(restored.household.people[0].imageAssetId).toBe('a'.repeat(64));
+    const portable = await snapshot(d);
+    expect(portable.households[0].household.people[0].imageAssetId).toBe('a'.repeat(64));
+  });
   it('avoids semantic no-op revisions and preserves displaced provenance', async () => {
     const d = database();
     const b = await seed(d);
@@ -123,6 +141,35 @@ describe('transactions and history', () => {
   });
 });
 describe('capture application', () => {
+  it('preserves an intentional review image removal at final apply', async () => {
+    const d = database();
+    const b = await seed(d);
+    const household = structuredClone(b.households[0].household);
+    household.people[0].imageAssetId = 'a'.repeat(64);
+    const current = await saveHousehold(household, b.households[0].versionId, undefined, d);
+    const proposed = manualProposal({ ...household, cue: 'Text update' }, current);
+    const capture: Capture = {
+      id: uuid(),
+      createdAt: now(),
+      updatedAt: now(),
+      kind: 'text',
+      text: 'Text update',
+      hints: {},
+      stage: 'proposed',
+      proposals: [proposed],
+    };
+    await saveCapture(capture, d);
+    const edited = structuredClone(proposed);
+    delete edited.household!.people[0].imageAssetId;
+    await saveDraft(capture.id, 0, edited, proposed, d);
+    const savedDraft = (await d.inbox.get(capture.id))!.proposals![0];
+    expect(savedDraft.household!.people[0].imageAssetId).toBeUndefined();
+    await expect(applyCapture(capture.id, false, d)).rejects.toThrow('acknowledge');
+    await applyCapture(capture.id, true, d);
+    const saved = (await d.households.get(household.id))!;
+    expect(saved.household.people[0].imageAssetId).toBeUndefined();
+    expect(saved.household.cue).toBe('Text update');
+  });
   async function capture(d: AhThatsWhoDB) {
     const b = await seed(d);
     const r = b.households[0];

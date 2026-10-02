@@ -42,6 +42,8 @@ export function removals(current: Household, proposed: Household) {
     for (const k of ['firstName', 'lastName', 'role', 'birthDate', 'ageNote', 'notes'] as const)
       if (p[k] && JSON.stringify(p[k]) !== JSON.stringify(n[k]))
         changes.push(`${labels[k]} for ${personName(p)}: ${factText(p[k])} → ${factText(n[k])}`);
+    if (p.imageAssetId && p.imageAssetId !== n.imageAssetId)
+      changes.push(`Image for ${personName(p)}: ${n.imageAssetId ? 'replaced' : 'removed'}`);
   }
   for (const k of ['cue', 'notes'] as const)
     if (current[k] && current[k] !== proposed[k])

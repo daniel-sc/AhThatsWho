@@ -42,7 +42,7 @@ Export a notebook file in Settings for a copy you can keep independently. Import
 
 Backups include saved households, contexts, trash, history, inbox text and transcripts, review suggestions, and portable preferences. They exclude raw audio, unsaved drafts, API keys, and connection credentials.
 
-Optional Google Drive backup keeps a separate history for each installation. A browser and an installed app can have separate notebooks even on the same device. Restoring another history copies its notebook; subsequent changes do not synchronize. The existing iCloud backup integration supports one active device.
+Optional Google Drive backup keeps a separate history for each installation. A browser and an installed app can have separate notebooks even on the same device. Restoring another history copies its notebook; subsequent changes do not synchronize. iCloud integration has been retired; existing remote backups are left untouched.
 
 Keep the app open while a backup completes and check that it is verified. Closing immediately can defer a backup or interrupt recording. Recovery requires a usable cloud snapshot or exported notebook file; it cannot restore excluded audio or keys.
 
@@ -53,3 +53,9 @@ Before moving to another app address, export your notebook. Browser data and ins
 Installation help is available on the welcome screen and in Settings. On iPhone, use Safari's **Share → Add to Home Screen**, then open the installed app online once before using it offline.
 
 Settings offers feedback by email at [hello@ahthatswho.com](mailto:hello@ahthatswho.com) and a GitHub issues link. Live-provider and physical-iPhone checks are tracked in the [verification record](verification.md).
+
+## Person images
+
+In the household editor, choose **Add image** beside a person. Select a photo, frame that person in the square crop, and choose **Use this image**. Save the household to keep the association. Canceling the household leaves the saved portrait unchanged. Tap a portrait in household details to enlarge it.
+
+Replacing or removing a portrait keeps earlier associations in History; restoring that version restores its portrait. AI edits use text only and preserve images by person identity. Backup ZIP files include images referenced by saved households, trash, History and inbox proposals. Old JSON backups remain importable. Only the cropped portrait is saved, and derived previews are excluded from backups.

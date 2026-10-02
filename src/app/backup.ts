@@ -2,8 +2,6 @@ import { createSignal } from 'solid-js';
 import { liveQuery } from 'dexie';
 import { db, backupState, getMeta, setMeta } from '../data/db';
 import { BackupCoordinator } from '../backup/coordinator';
-import { currentCloudConfig } from './cloud-config';
-import type { CloudConfig } from '../providers/cloudkit';
 import type { BackupProvider, DriveSession } from '../backup/contracts';
 import {
   beginDriveConnection,
@@ -15,24 +13,20 @@ import {
 export const [cloudStatus, setCloudStatus] = createSignal('Not configured');
 export const [cloudSignedIn, setCloudSignedIn] = createSignal(false);
 export const [provider, setProvider] = createSignal<BackupProvider>();
-export const [backupTarget, setBackupTarget] = createSignal<'drive' | 'icloud' | 'none'>('none');
+export const [backupTarget, setBackupTarget] = createSignal<'drive' | 'none'>('none');
 export const [googleSession, setGoogleSession] = createSignal<DriveSession>({
   configured: false,
   connected: false,
 });
 let coordinator: BackupCoordinator | undefined;
-let authenticate: (() => Promise<void>) | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let backoff = 5000;
 let lastCounter = -1;
 let connecting: Promise<void> | undefined;
 let epoch = 0;
 let lastToken = '';
-async function target() {
-  return getMeta<'drive' | 'icloud' | 'none'>(
-    'backupTarget',
-    (await getMeta('cloudConfig', undefined)) ? 'icloud' : 'none',
-  );
+async function target(): Promise<'drive' | 'none'> {
+  return (await getMeta('backupTarget', 'none')) === 'drive' ? 'drive' : 'none';
 }
 async function destination(id: string) {
   await db.transaction('rw', db.meta, async () => {
@@ -52,7 +46,6 @@ function clearRuntime() {
   epoch++;
   clearTimeout(timer);
   coordinator = undefined;
-  authenticate = undefined;
   setProvider(undefined);
   setCloudSignedIn(false);
 }
@@ -83,13 +76,6 @@ export async function disconnectGoogle() {
   await db.meta.delete('driveConnecting');
   setGoogleSession({ configured: googleSession().configured, connected: false });
   setCloudStatus('Disconnected');
-}
-export async function connectICloud(config: CloudConfig) {
-  clearRuntime();
-  await setMeta('cloudConfig', config);
-  await setMeta('backupTarget', 'icloud');
-  setBackupTarget('icloud');
-  await initializeCloud();
 }
 export async function initializeCloud() {
   if (connecting) return connecting;
@@ -156,35 +142,6 @@ export async function initializeCloud() {
       schedule();
       return;
     }
-    if (authenticate) {
-      await authenticate();
-      return;
-    }
-    const saved = await getMeta<CloudConfig | undefined>('cloudConfig', undefined);
-    if (!saved) return;
-    const config = currentCloudConfig(saved);
-    if (!config.container || !config.apiToken) return;
-    await destination(`icloud:${config.container}:${config.environment}`);
-    setCloudStatus('Sign-in required');
-    const { connectCloud } = await import('../providers/cloudkit');
-    const cloud = await connectCloud(config, (signed) => {
-      if (epoch !== mine || backupTarget() !== 'icloud') return;
-      setCloudSignedIn(signed);
-      if (signed) schedule();
-      else setCloudStatus('Sign-in required');
-    });
-    if (epoch !== mine) return;
-    setProvider(cloud.provider);
-    coordinator = new BackupCoordinator(
-      cloud.provider,
-      db,
-      (s) => {
-        if (epoch === mine) setCloudStatus(s);
-      },
-      `icloud:${config.container}:${config.environment}`,
-    );
-    authenticate = cloud.auth;
-    if (cloudSignedIn()) schedule();
   })();
   try {
     await connecting;
@@ -258,7 +215,7 @@ export function startBackup() {
       return;
     }
     if (selected !== backupTarget() || pendingConnection) {
-      if (coordinator || authenticate || cloudSignedIn()) clearRuntime();
+      if (coordinator || cloudSignedIn()) clearRuntime();
       setBackupTarget(selected);
       if (pendingConnection) setCloudStatus('Connecting Google Drive');
       else void initializeCloud().catch(() => {});

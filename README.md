@@ -11,6 +11,7 @@ AhThatsWho is a personal name notebook for those “I know you…” moments. Sa
 - **Search for what you remember.** “Red bike” can be enough to find Anna, Leo’s mum. Partial names, details, and typos all work.
 - **No search term? Just browse.** Pick a context, such as school, work, or a club, and scroll a scannable list of people and households. Sometimes recognition gets there before recall.
 - **Get it down while it’s fresh.** Add a person manually, jot a note, or speak it. Optional AI turns a note about one or several households into entries you review before saving.
+- **Put a face to the name.** Add a cropped portrait to a person, including from a group photo. Images stay on your device unless you choose Drive backup or export a backup file.
 - **Keep the connections.** People appear together in households, with the details and contexts that help you place them.
 - **Skip the signup ceremony.** No account, login, or API key required. The core notebook works fully locally, with offline browsing, search, and editing. Use optional AI or cloud backup only when you choose.
 
@@ -28,7 +29,7 @@ For help or feedback, email [hello@ahthatswho.com](mailto:hello@ahthatswho.com).
 
 ## How it works
 
-A SolidStart/Solid app stores the notebook locally in IndexedDB through Dexie. A service worker supports offline use. Cloudflare serves the static app and a Worker handles sponsored AI and optional Google Drive backup; personal-key AI and iCloud connect directly to their providers.
+A SolidStart/Solid app stores notebook text locally in IndexedDB through Dexie and cropped portraits separately in OPFS. A service worker supports offline use. Cloudflare serves the static app and a Worker handles sponsored AI and optional Google Drive backup; personal-key AI connects directly to OpenAI.
 
 ```mermaid
 flowchart LR
@@ -37,7 +38,6 @@ flowchart LR
     Worker --> OpenAI[OpenAI]
     Worker <--> Drive[(Google Drive)]
     App -->|Optional personal-key AI| OpenAI
-    App <-->|Optional iCloud backup| CloudKit[(iCloud / CloudKit)]
 ```
 
 AI suggests changes; you review them before anything is saved. Cloud backups are snapshots for recovery. Each installation keeps its own notebook, without device synchronization.

@@ -1,4 +1,4 @@
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 export type Value<T = string> = { value: T; certainty?: 'uncertain' | 'approximate' };
 export type BirthDate =
   | { kind: 'year'; year: number }
@@ -7,6 +7,7 @@ export type BirthDate =
   | { kind: 'month-day'; month: number; day: number };
 export interface Person {
   id: string;
+  imageAssetId?: string;
   firstName?: Value;
   lastName?: Value;
   role?: 'adult' | 'child' | 'other';

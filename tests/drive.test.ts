@@ -10,6 +10,7 @@ import {
   type DriveEnv,
   type Statement,
   hexHash,
+  blobHash,
 } from '../src/server/drive-common';
 import { historyId, IDLE_MS, type Session } from '../src/server/drive-auth';
 import { fixtures } from '../src/domain/fixtures';
@@ -85,6 +86,7 @@ beforeEach(() => {
   sqlite = new DatabaseSync(':memory:');
   sqlite.exec(readFileSync('migrations/0001_drive.sql', 'utf8'));
   sqlite.exec(readFileSync('migrations/0002_oauth_completion.sql', 'utf8'));
+  sqlite.exec(readFileSync('migrations/0003_drive_asset_verification.sql', 'utf8'));
   env = {
     BACKUP_DB: database(),
     GOOGLE_CLIENT_ID: 'synthetic-client',
@@ -252,7 +254,8 @@ async function fakeDrive() {
       name: string;
       appProperties: Record<string, string>;
       size: string;
-      content: string;
+      content: string | Uint8Array<ArrayBuffer>;
+      version?: string;
     }
   >();
   let next = 0;
@@ -263,18 +266,38 @@ async function fakeDrive() {
       return Response.json({ access_token: 'synthetic-access' });
     if (u.pathname.endsWith('/generateIds'))
       return Response.json({ ids: [`google-file-${String(++next).padStart(16, '0')}`] });
-    if (u.pathname === '/drive/v3/files')
-      return Response.json({ files: [...files.values()].map(({ content: _, ...f }) => f) });
+    if (u.pathname === '/drive/v3/files') {
+      const q = u.searchParams.get('q') || '';
+      const constraints = [...q.matchAll(/key='([^']+)' and value='([^']+)'/g)];
+      return Response.json({
+        files: [...files.values()]
+          .filter((f) => {
+            for (const key of new Set(constraints.map((v) => v[1])))
+              if (
+                !constraints.filter((v) => v[1] === key).some((v) => f.appProperties[key] === v[2])
+              )
+                return false;
+            return true;
+          })
+          .map(({ content: _, ...f }) => f),
+      });
+    }
     if (u.pathname === '/upload/drive/v3/files') {
-      const text = await (init.body as Blob).text();
-      const pieces = text.split('\r\n\r\n');
-      const metadata = JSON.parse(pieces[1].split('\r\n--')[0]);
-      const content = pieces[2].split('\r\n--')[0];
+      const bytes = Buffer.from(await (init.body as Blob).arrayBuffer());
+      const boundary = bytes.subarray(0, bytes.indexOf('\r\n')).toString();
+      const metadataStart = bytes.indexOf('\r\n\r\n') + 4;
+      const metadataEnd = bytes.indexOf(`\r\n${boundary}`, metadataStart);
+      const metadata = JSON.parse(bytes.subarray(metadataStart, metadataEnd).toString());
+      const contentStart = bytes.indexOf('\r\n\r\n', metadataEnd) + 4;
+      const content = new Uint8Array(
+        bytes.subarray(contentStart, bytes.lastIndexOf(`\r\n${boundary}`)),
+      );
       if (files.has(metadata.id)) return new Response(null, { status: 409 });
       files.set(metadata.id, {
         ...metadata,
         content,
-        size: String(new TextEncoder().encode(content).length),
+        size: String(content.length),
+        version: '1',
       });
       return Response.json({ id: metadata.id });
     }
@@ -289,7 +312,7 @@ async function fakeDrive() {
       Object.assign(f, JSON.parse(init.body as string));
       return Response.json(f);
     }
-    if (u.searchParams.get('alt') === 'media') return new Response(f.content);
+    if (u.searchParams.get('alt') === 'media') return new Response(new Blob([f.content]));
     return Response.json(f);
   });
   return files;
@@ -391,6 +414,132 @@ it('reconciles an upload whose successful Google response was lost', async () =>
   expect(files.size).toBe(2);
   expect((await driveRequest(upload(), env)).status).toBe(200);
   expect(files.size).toBe(2);
+});
+
+function assetUpload(asset: string, image: Blob) {
+  const r = request(`assets/${asset}`, undefined, 'PUT');
+  r.headers.set('Content-Type', 'image/jpeg');
+  return new Request(r, { body: image });
+}
+it('requires verified binary assets before publishing a snapshot and reuses unchanged remote bytes', async () => {
+  const files = await fakeDrive();
+  const image = new Blob([new Uint8Array([255, 216, 255, 0, 128, 10, 13, 255, 217])]);
+  const asset = await blobHash(image),
+    b = fixtures(1);
+  b.households[0].household.people[0].imageAssetId = asset;
+  const upload = () => {
+    const r = request('snapshots/image-snapshot-12345678', b, 'PUT');
+    r.headers.set('X-Backup-Label', 'Phone');
+    return r;
+  };
+  expect((await driveRequest(upload(), env)).status).toBe(409);
+  expect(files.size).toBe(0);
+  expect((await driveRequest(assetUpload(asset, image), env)).status).toBe(200);
+  const remote = [...files.values()].find((f) => f.appProperties.kind === 'asset')!;
+  expect(new Uint8Array(await new Blob([remote.content]).arrayBuffer())).toEqual(
+    new Uint8Array(await image.arrayBuffer()),
+  );
+  expect((await driveRequest(upload(), env)).status).toBe(200);
+  expect((await driveRequest(request(`assets/${asset}/verify`), env)).status).toBe(200);
+  const histories = await (await driveRequest(request('histories'), env)).json();
+  expect(histories[0].snapshots).toHaveLength(1);
+  const mediaCalls = () =>
+    fetchMock.mock.calls.filter(([url]) => String(url).includes(`/${remote.id}?alt=media`)).length;
+  expect(mediaCalls()).toBe(1);
+  expect((await driveRequest(upload(), env)).status).toBe(200);
+  expect(mediaCalls()).toBe(1);
+  const h = histories[0].id;
+  const restored = await driveRequest(request(`assets/${asset}?history=${h}`), env);
+  expect(restored.status).toBe(200);
+  expect(await restored.arrayBuffer()).toEqual(await image.arrayBuffer());
+  expect(mediaCalls()).toBe(2); // Restore forces a fresh content check even when cached.
+  remote.content = 'corrupt';
+  remote.version = '2';
+  expect((await driveRequest(upload(), env)).status).toBe(502);
+  expect((await driveRequest(request(`assets/${asset}?history=${h}`), env)).status).toBe(502);
+});
+it('reconciles interrupted image uploads and isolates asset ownership between histories and accounts', async () => {
+  const files = await fakeDrive(),
+    image = new Blob([new Uint8Array([255, 216, 255, 31, 255, 217])]);
+  const asset = await blobHash(image),
+    handler = fetchMock.getMockImplementation()!;
+  let lost = false;
+  fetchMock.mockImplementation(async (...args: unknown[]) => {
+    const result = await handler(...args);
+    if (String(args[0]).includes('/upload/') && !lost) {
+      lost = true;
+      throw new Error('Lost image upload response');
+    }
+    return result;
+  });
+  expect((await driveRequest(assetUpload(asset, image), env)).status).toBe(502);
+  expect((await driveRequest(assetUpload(asset, image), env)).status).toBe(200);
+  expect(files.size).toBe(1);
+  const oldHistory = [...files.values()][0].appProperties.history;
+  await seed(
+    'google-sub-1',
+    'other-session-1234567890',
+    'other-installation-123456',
+    'other-device-1234567890',
+  );
+  const other = (r: Request) => {
+    r.headers.set('Authorization', 'Bearer other-session-1234567890');
+    r.headers.set('X-Backup-Device', 'other-device-1234567890');
+    return r;
+  };
+  expect(
+    (await driveRequest(other(request(`assets/${asset}?history=${oldHistory}`)), env)).status,
+  ).toBe(200);
+  expect(await (await driveRequest(other(request(`assets/${asset}/verify`)), env)).json()).toEqual({
+    verified: false,
+  });
+  expect((await driveRequest(other(assetUpload(asset, image)), env)).status).toBe(200);
+  expect(files.size).toBe(2);
+  expect(new Set([...files.values()].map((f) => f.appProperties.history)).size).toBe(2);
+  const foreign = [...files.values()].find((f) => f.appProperties.history === oldHistory)!;
+  foreign.appProperties.origin = 'different-origin';
+  expect(
+    (await driveRequest(other(request(`assets/${asset}?history=${oldHistory}`)), env)).status,
+  ).toBe(404);
+});
+it('rejects mismatched and over-limit binary assets and retains assets while pruning snapshots', async () => {
+  const files = await fakeDrive(),
+    image = new Blob(['synthetic-image']);
+  const asset = await blobHash(image);
+  expect((await driveRequest(assetUpload(asset, new Blob(['different'])), env)).status).toBe(400);
+  const tooLarge = assetUpload(asset, image);
+  tooLarge.headers.set('Content-Length', String(5 * 1024 * 1024 + 1));
+  expect((await driveRequest(tooLarge, env)).status).toBe(413);
+  expect(files.size).toBe(0);
+  expect((await driveRequest(assetUpload(asset, image), env)).status).toBe(200);
+  const h = [...files.values()][0].appProperties.history;
+  for (let i = 0; i < 12; i++) {
+    const r = request(
+      `snapshots/portrait-history-${String(i).padStart(8, '0')}`,
+      fixtures(1),
+      'PUT',
+    );
+    r.headers.set('X-Backup-Label', 'Phone');
+    expect((await driveRequest(r, env)).status).toBe(200);
+  }
+  const history = (await (await driveRequest(request('histories'), env)).json())[0];
+  expect(
+    (await driveRequest(request('prune', { verifiedId: history.snapshots[0].id }), env)).status,
+  ).toBe(200);
+  expect([...files.values()].filter((f) => f.appProperties.kind === 'snapshot')).toHaveLength(10);
+  expect([...files.values()].filter((f) => f.appProperties.kind === 'asset')).toHaveLength(1);
+  await seed(
+    'google-sub-1',
+    'other-session-1234567890',
+    'other-installation-123456',
+    'other-device-1234567890',
+  );
+  const remove = request('delete-history', { id: h });
+  remove.headers.set('Authorization', 'Bearer other-session-1234567890');
+  remove.headers.set('X-Backup-Device', 'other-device-1234567890');
+  expect((await driveRequest(remove, env)).status).toBe(200);
+  expect(files.size).toBe(0);
+  expect(sqlite.prepare('SELECT * FROM drive_asset_verifications').all()).toHaveLength(0);
 });
 
 it('rejects a corrupted uploaded snapshot before any pruning', async () => {

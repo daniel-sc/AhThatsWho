@@ -13,6 +13,7 @@ import {
 } from '../domain/types';
 import { parseBackup, validateBackup } from '../domain/integrity';
 import { db, getMeta, setMeta, backupState, type AhThatsWhoDB } from '../data/db';
+import { imageAssetIds, readImageAsset } from '../data/person-images';
 const val = <T>(v: Value<T> | undefined): Value<T> | undefined =>
   v
     ? {
@@ -36,6 +37,7 @@ export const cleanHousehold = (h: Household): Household => ({
   notes: h.notes,
   people: h.people.map((p) => ({
     id: p.id,
+    imageAssetId: p.imageAssetId,
     firstName: val(p.firstName),
     lastName: val(p.lastName),
     role: p.role,
@@ -141,6 +143,9 @@ export function importPreview(json: string) {
 export async function replaceData(input: Backup, d: AhThatsWhoDB = db) {
   validateBackup(input);
   const b = sanitize(input);
+  // OPFS work must finish before opening the replacement transaction. The
+  // previous notebook's files remain available to its local safety copy.
+  for (const id of imageAssetIds(b)) await readImageAsset(id);
   return d.transaction(
     'rw',
     [d.households, d.contexts, d.revisions, d.inbox, d.audio, d.meta],

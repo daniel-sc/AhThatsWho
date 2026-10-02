@@ -1,0 +1,7 @@
+# Store person images separately from notebook records
+
+Person images are referenced from notebook data and stored as separate, deduplicated assets both locally and in cloud backups. This avoids repeating image bytes across household revisions and cloud snapshots, at the cost of requiring backup verification and restore to account for referenced assets as well as notebook JSON. Manual exports package the JSON and required image files together in a self-contained ZIP for portable recovery.
+
+Local assets use OPFS while notebook records remain in IndexedDB. The [storage benchmark](../person-image-storage-benchmark.md) found broadly similar image decode times but a WebKit text-read slowdown in the database that held images, supporting separation without claiming OPFS is universally faster. Files are immutable: finish and verify a file before committing its reference, accepting unused files after failures or canceled edits rather than introducing cross-store transactions or immediate rollback. Concurrent writes must not publish incomplete assets, and restores stage files before replacing notebook references.
+
+Cloud deduplication is scoped to each installation's backup history to preserve independent ownership and recovery. Existing notebook snapshot retention continues, but backed-up image assets are not pruned and manual asset cleanup is deferred: this accepts storage growth to avoid introducing asset reachability and deletion logic in the first release. See the [person image decisions](../person-image-design-decisions.md).

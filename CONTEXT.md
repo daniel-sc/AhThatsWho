@@ -4,6 +4,9 @@ A personal name notebook for remembering people, their households, and where you
 
 ## Language
 
+**Person image**:
+The single identifying image associated with a person, used as a visual cue to recognize them.
+
 **Context**:
 A named setting in which people are known, such as a course or club. A household can belong to multiple contexts.
 

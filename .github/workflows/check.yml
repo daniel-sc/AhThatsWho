@@ -13,7 +13,6 @@ jobs:
     env:
       CI: 'true'
       BUILD_SHA: ${{ github.sha }}
-      VITE_CLOUDKIT_API_TOKEN: ${{ vars.VITE_CLOUDKIT_API_TOKEN }}
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v6

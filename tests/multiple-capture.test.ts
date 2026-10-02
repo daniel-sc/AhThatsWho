@@ -63,7 +63,7 @@ it('saves mixed creates and updates once, with receipts for every household', as
   expect(saved[0].householdId).not.toMatch(/^tmp:/);
   const restored = database();
   const exported = importPreview(JSON.stringify(await snapshot(d)));
-  expect(exported.version).toBe(2);
+  expect(exported.version).toBe(3);
   await replaceData(exported, restored);
   expect(await applyCapture(c.id, true, restored)).toEqual(saved);
   expect(await restored.households.count()).toBe(2);
@@ -161,16 +161,14 @@ it('retains previous drafts after source correction but blocks saving until refr
 it('opens a version 1 local database and imports singular captures without losing them', async () => {
   const name = uuid();
   const old = new Dexie(name);
-  old
-    .version(1)
-    .stores({
-      households: 'household.id,updatedAt,deletedAt',
-      contexts: 'id',
-      revisions: 'id,record.household.id',
-      inbox: 'id,createdAt,stage',
-      audio: 'id,captureId',
-      meta: 'key',
-    });
+  old.version(1).stores({
+    households: 'household.id,updatedAt,deletedAt',
+    contexts: 'id',
+    revisions: 'id,record.household.id',
+    inbox: 'id,createdAt,stage',
+    audio: 'id,captureId',
+    meta: 'key',
+  });
   const c = capture();
   delete c.proposals;
   c.proposal = fresh();
@@ -183,7 +181,7 @@ it('opens a version 1 local database and imports singular captures without losin
   b.version = 1;
   b.inbox = [c];
   const clean = importPreview(JSON.stringify(b));
-  expect(clean.version).toBe(2);
+  expect(clean.version).toBe(3);
   expect(clean.inbox[0].proposals).toHaveLength(1);
   expect(clean.inbox[0].proposal).toBeUndefined();
   await replaceData(clean, upgraded);

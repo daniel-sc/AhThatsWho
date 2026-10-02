@@ -128,6 +128,27 @@ function stripNull(x: unknown): unknown {
     );
   return x;
 }
+// An explicit text projection keeps local image references out of AI requests.
+function textRecord(r: HouseholdRecord) {
+  return {
+    versionId: r.versionId,
+    household: {
+      id: r.household.id,
+      contextIds: [...r.household.contextIds],
+      cue: r.household.cue,
+      notes: r.household.notes,
+      people: r.household.people.map((p) => ({
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        role: p.role,
+        birthDate: p.birthDate,
+        ageNote: p.ageNote,
+        notes: p.notes,
+      })),
+    },
+  };
+}
 export async function generate(
   c: Capture,
   rows: HouseholdRecord[],
@@ -147,7 +168,7 @@ export async function generate(
     source,
     expectedLanguages: languages,
     hints: mode === 'new' ? { contextId: c.hints.contextId } : c.hints,
-    candidates,
+    candidates: candidates.map(textRecord),
     contexts,
     nameIndex: index.slice(0, 5000),
     mode,
@@ -215,8 +236,13 @@ export async function generate(
       Array.isArray(p.contextSuggestions) && p.contextSuggestions.length === 0,
       'Create new contexts in Settings, then process this capture again.',
     );
+    // Model output never controls image associations, even if it adds fields
+    // outside the requested schema to an ambiguous draft.
+    if (p.household && Array.isArray(p.household.people))
+      for (const person of p.household.people) delete person.imageAssetId;
     if (p.action === 'create' || p.action === 'update') {
       assert(p.household, 'Missing household');
+      assert(Array.isArray(p.household.people), 'Missing people');
       const allowed = new Set(contexts.map((x) => x.id));
       validateHousehold(p.household, allowed);
       let current: HouseholdRecord | undefined;
@@ -232,6 +258,10 @@ export async function generate(
         );
         targets.add(current.household.id);
         p.baseVersion = current.versionId;
+        for (const person of p.household.people) {
+          const image = current.household.people.find((old) => old.id === person.id)?.imageAssetId;
+          if (image) person.imageAssetId = image;
+        }
         p.removals = removals(current.household, p.household);
       } else {
         assert(!p.targetId, 'New household must not have an existing target');

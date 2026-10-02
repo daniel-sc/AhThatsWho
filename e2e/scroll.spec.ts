@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { savedMeta } from './helpers';
 import { fixtures } from '../src/domain/fixtures';
+test.use({ serviceWorkers: 'block' });
 test('large list restores visible household after detail and reload', async ({ page }) => {
+  // Exercise a cold lazy route rather than relying on precache/network timing.
+  await page.route('**/HouseholdPage-*.js', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.continue();
+  });
   await page.goto('/');
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await page.locator('input[type=file]').setInputFiles({
@@ -22,6 +28,10 @@ test('large list restores visible household after detail and reload', async ({ p
       )!.dataset.household!,
   );
   await page.locator(`[data-household="${id}"]`).click();
+  // The router commits history after the lazy view is ready. Back before then
+  // would leave Home for Settings instead of returning from the household.
+  await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/households/${id}$`));
   await page.goBack();
   await expect(page.locator(`[data-household="${id}"]`)).toBeInViewport();
   await page.goForward();

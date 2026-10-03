@@ -13,9 +13,11 @@ export default function SettingsPage() {
     installation,
     navigate,
     setNotice,
+    inlinePersonImages,
   } = usePage();
   return (
     <Settings
+      inlinePersonImages={inlinePersonImages()}
       installation={installation}
       returnToCapture={
         returnToCapture()

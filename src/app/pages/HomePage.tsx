@@ -1,9 +1,13 @@
-import { Show } from 'solid-js';
+import { createSignal, ErrorBoundary, lazy, Show, Suspense } from 'solid-js';
+import type { Person } from '../../domain/types';
+import { ImageDialog } from '../../ui/ImageDialog';
 import { usePage } from '../page';
 import { Icon } from '../../ui/Icon';
 import { HouseholdList } from '../../ui/HouseholdList';
 import { ContextFilters } from '../../ui/ContextFilters';
 import { Welcome } from '../../ui/Welcome';
+
+const PersonImageEditor = lazy(() => import('../../ui/PersonImageEditor'));
 
 export default function HomePage() {
   const {
@@ -18,8 +22,23 @@ export default function HomePage() {
     newHousehold,
     capture,
     homeRestoreAnchor,
+    inlinePersonImages,
   } = usePage();
   const restoreAnchor = homeRestoreAnchor();
+  const [imageEdit, setImageEdit] = createSignal<{ householdId: string; person: Person }>();
+  function closeImageEditor() {
+    const personId = imageEdit()?.person.id;
+    setImageEdit(undefined);
+    // Saving replaces list records and their DOM nodes. Restore by identity after rendering.
+    requestAnimationFrame(() => {
+      const target =
+        personId &&
+        document.querySelector<HTMLElement>(`[data-person-image="${CSS.escape(personId)}"]`);
+      (target || document.querySelector<HTMLInputElement>('input[type="search"]'))?.focus({
+        preventScroll: true,
+      });
+    });
+  }
   return (
     <Show
       when={!welcome()}
@@ -70,12 +89,48 @@ export default function HomePage() {
             </button>
           </div>
           <HouseholdList
+            inlineImages={inlinePersonImages()}
+            editImage={(householdId, person) =>
+              setImageEdit({ householdId, person: structuredClone(person) })
+            }
             rows={results().rows}
             contexts={contexts()}
             query={ui().query}
             restoreAnchor={restoreAnchor}
             open={openHousehold}
           />
+          <Show when={imageEdit()} keyed>
+            {(selection) => (
+              <ErrorBoundary
+                fallback={() => (
+                  <ImageDialog
+                    title="Image editor unavailable"
+                    close={closeImageEditor}
+                    dismissOnBackdrop={false}
+                  >
+                    <p role="alert">
+                      The editor could not be loaded. Check your connection and try again.
+                    </p>
+                    <button onClick={() => window.location.reload()}>Reload</button>
+                  </ImageDialog>
+                )}
+              >
+                <Suspense
+                  fallback={
+                    <ImageDialog
+                      title="Opening image editor…"
+                      close={closeImageEditor}
+                      dismissOnBackdrop={false}
+                    >
+                      <p role="status">Loading…</p>
+                    </ImageDialog>
+                  }
+                >
+                  <PersonImageEditor {...selection} close={closeImageEditor} />
+                </Suspense>
+              </ErrorBoundary>
+            )}
+          </Show>
           <Show when={!results().rows.length}>
             <div class="empty-state">
               <img class="empty-icon" src="/brand-mark.png" alt="" aria-hidden="true" />

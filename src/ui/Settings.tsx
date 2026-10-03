@@ -10,6 +10,7 @@ import { snapshot, replaceData, recoverSafety } from '../backup/portable';
 import { uuid, type Backup, type Context, type BackupState } from '../domain/types';
 import { cloudStatus, backupTarget, refreshAuth } from '../app/backup';
 export function Settings(props: {
+  inlinePersonImages: boolean;
   installation: ReturnType<typeof createInstallation>;
   returnToCapture?: () => void;
   contexts: Context[];
@@ -119,6 +120,21 @@ export function Settings(props: {
         )}
       </Show>
       <fieldset class="settings-content" disabled={!!preview()}>
+        <div class="settings-block">
+          <h2>People list</h2>
+          <label class="check">
+            <input
+              type="checkbox"
+              checked={props.inlinePersonImages}
+              onChange={(event) => {
+                const enabled = event.currentTarget.checked;
+                void act(() => setMeta('inlinePersonImages', enabled));
+              }}
+            />
+            I'll sacrifice quick recognition to satisfy my completeness itch
+          </label>
+          <p class="fine muted">Show a small picture or placeholder beside every name.</p>
+        </div>
         <div class="settings-block">
           <h2>OpenAI</h2>
           <p class="muted">

@@ -4,6 +4,8 @@ Audience: a fresh Sol implementer at high reasoning effort. Implement the agreed
 
 ## Sources and scope
 
+Follow-up note (2026-10-03): the authorized optional inline layout in [design decisions](person-image-design-decisions.md#optional-inline-layout-follow-up-2026-10-03) revises the original card presentation and adds an image-only editor entry point. The implementation sequence below describes the original feature and must not override those newer choices.
+
 Read [design decisions](person-image-design-decisions.md), [ADR 0004](adr/0004-referenced-person-image-assets.md), and the existing [backup decisions](backup-design-decisions.md). They define behavior; do not reopen settled choices or duplicate them in another spec. The [storage benchmark](person-image-storage-benchmark.md) explains choosing OPFS without claiming a universal speed advantage.
 
 The user wants pragmatic implementation and specs, meaningful tests only, an independent reviewer with no prior conversation context, and manual UI/UX checks using the Playwright CLI. The review and verification requirements apply to the finished implementation, not to this plan; all remain outstanding. Do not deploy or publish as part of this handoff.

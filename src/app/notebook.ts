@@ -36,6 +36,7 @@ export function createNotebook() {
   const [rows, setRows] = createSignal<HouseholdRecord[]>([]);
   const [contexts, setContexts] = createSignal<Context[]>([]);
   const [inbox, setInbox] = createSignal<Capture[]>([]);
+  const [inlinePersonImages, setInlinePersonImages] = createSignal(false);
   let documentResume: UI | undefined;
   const [startupState, setStartupState] = createSignal<UI>();
   const [launchState, setLaunchState] = createSignal<UI>(initial);
@@ -191,19 +192,22 @@ export function createNotebook() {
   onMount(async () => {
     try {
       await db.open();
-      const [households, ctx, items, preferences, saved, newNotebook] = await Promise.all([
-        db.households.toArray(),
-        db.contexts.toArray(),
-        db.inbox.toArray(),
-        getMeta('preferences', { resume: true }),
-        getMeta<UI>('ui', initial),
-        isFreshNotebook(),
-      ]);
+      const [households, ctx, items, preferences, saved, newNotebook, inlineImages] =
+        await Promise.all([
+          db.households.toArray(),
+          db.contexts.toArray(),
+          db.inbox.toArray(),
+          getMeta('preferences', { resume: true }),
+          getMeta<UI>('ui', initial),
+          isFreshNotebook(),
+          getMeta('inlinePersonImages', false),
+        ]);
       if (disposed) return;
       setFresh(newNotebook);
       setRows(households);
       setContexts(ctx);
       setInbox(items);
+      setInlinePersonImages(inlineImages);
       let resumed = preferences.resume && screens.includes(saved.screen) ? saved : initial;
       const returningFromGoogle =
         new URLSearchParams(location.search).has('backup') ||
@@ -221,6 +225,7 @@ export function createNotebook() {
         liveQuery(() => db.households.toArray()).subscribe(setRows),
         liveQuery(() => db.contexts.toArray()).subscribe(setContexts),
         liveQuery(() => db.inbox.toArray()).subscribe(setInbox),
+        liveQuery(() => getMeta('inlinePersonImages', false)).subscribe(setInlinePersonImages),
       ];
       const stopBackup = startBackup();
       cleanup = () => {
@@ -280,6 +285,7 @@ export function createNotebook() {
     setRows,
     contexts,
     inbox,
+    inlinePersonImages,
     ready,
     welcome,
     returnToCapture,

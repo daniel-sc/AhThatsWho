@@ -23,6 +23,7 @@ export function ImageCropper(props: {
   name: string;
   accept: (assetId: string) => void;
   cancel: () => void;
+  standalone?: boolean;
 }) {
   let container!: HTMLDivElement;
   let cropper: Cropper | undefined;
@@ -168,7 +169,12 @@ export function ImageCropper(props: {
     }
   }
   return (
-    <ImageDialog title={`Frame ${props.name}`} close={props.cancel} busy={busy()}>
+    <ImageDialog
+      title={`Frame ${props.name}`}
+      close={props.cancel}
+      busy={busy()}
+      dismissOnBackdrop={!props.standalone}
+    >
       <p class="muted crop-help">
         Drag the square to the person. Resize its corners or zoom for a closer crop.
       </p>
@@ -222,7 +228,10 @@ export function ImageCropper(props: {
         </p>
       </Show>
       <p class="fine muted">
-        Only the square crop is kept. It applies when you save the household.
+        Only the square crop is kept.{' '}
+        {props.standalone
+          ? 'Choose “Use this image”, then Save to apply it.'
+          : 'It applies when you save the household.'}
       </p>
       <div class="actions crop-actions">
         <button

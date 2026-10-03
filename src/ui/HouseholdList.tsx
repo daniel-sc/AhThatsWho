@@ -1,5 +1,6 @@
 import { createSignal, createMemo, createEffect, For, onMount, onCleanup, on } from 'solid-js';
-import type { Context, HouseholdRecord } from '../domain/types';
+import { Dynamic } from 'solid-js/web';
+import { personName, type Context, type HouseholdRecord, type Person } from '../domain/types';
 import { Icon } from './Icon';
 import { HouseholdView } from './HouseholdView';
 // Variable-height windowing keeps large notebooks responsive without clipping people.
@@ -9,11 +10,14 @@ export function HouseholdList(props: {
   query: string;
   restoreAnchor?: { id: string; top: number };
   open: (r: HouseholdRecord) => void;
+  inlineImages?: boolean;
+  editImage?: (householdId: string, person: Person) => void;
 }) {
   let list!: HTMLDivElement;
   const [viewport, setViewport] = createSignal({ y: 0, height: 900 });
   const [sizes, setSizes] = createSignal(new Map<string, number>());
-  const key = (r: HouseholdRecord) => `${r.household.id}:${r.versionId}:${props.query}`;
+  const key = (r: HouseholdRecord) =>
+    `${r.household.id}:${r.versionId}:${props.query}:${!!props.inlineImages}`;
   const offsets = createMemo(() => {
     const result = [0];
     for (const r of props.rows)
@@ -79,8 +83,10 @@ export function HouseholdList(props: {
     requestAnimationFrame(measure);
   });
   function Row(p: { record: HouseholdRecord }) {
-    let button!: HTMLButtonElement;
-    onMount(() => {
+    const [element, setElement] = createSignal<HTMLElement>();
+    createEffect(() => {
+      const button = element();
+      if (!button) return;
       let frame: number | undefined;
       const observer = new ResizeObserver((entries) => {
         const height =
@@ -101,22 +107,36 @@ export function HouseholdList(props: {
       });
     });
     return (
-      <button
-        ref={button}
+      <Dynamic
+        component={props.inlineImages ? 'div' : 'button'}
+        ref={setElement}
         data-household={p.record.household.id}
-        class="household-row"
-        onClick={() => props.open(p.record)}
+        class={`household-row${props.inlineImages ? ' inline-image-row' : ''}`}
+        onClick={props.inlineImages ? undefined : () => props.open(p.record)}
       >
+        {props.inlineImages && (
+          <button
+            type="button"
+            class="household-open"
+            aria-label={`Open household: ${p.record.household.people.map(personName).join(', ') || p.record.household.cue || 'Memory cue'}`}
+            onClick={() => props.open(p.record)}
+          />
+        )}
         <HouseholdView
           household={p.record.household}
           contexts={props.contexts}
           query={props.query}
           compact
+          editImage={
+            props.inlineImages
+              ? (person) => props.editImage?.(p.record.household.id, person)
+              : undefined
+          }
         />
         <span class="row-arrow">
           <Icon name="chevron" />
         </span>
-      </button>
+      </Dynamic>
     );
   }
   return (

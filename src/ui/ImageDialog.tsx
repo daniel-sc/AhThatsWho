@@ -6,6 +6,7 @@ export function ImageDialog(props: {
   title: string;
   close: () => void;
   busy?: boolean;
+  dismissOnBackdrop?: boolean;
   children: JSX.Element;
 }) {
   let dialog!: HTMLDialogElement;
@@ -32,7 +33,7 @@ export function ImageDialog(props: {
           if (!props.busy) props.close();
         }}
         onClick={(event) => {
-          if (event.target !== dialog || props.busy) return;
+          if (event.target !== dialog || props.busy || props.dismissOnBackdrop === false) return;
           const rect = dialog.getBoundingClientRect();
           if (
             event.clientX < rect.left ||

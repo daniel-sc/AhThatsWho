@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createSignal, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import { imagePreview, readImageAsset } from '../data/person-images';
 import { ImageDialog } from './ImageDialog';
 
@@ -9,6 +9,7 @@ export function PersonImage(props: {
   preview?: boolean;
   enlarge?: boolean;
   class?: string;
+  placeholder?: JSX.Element;
 }) {
   let element!: HTMLElement;
   const [url, setUrl] = createSignal<string>();
@@ -71,7 +72,7 @@ export function PersonImage(props: {
           aria-label={`${props.name}: ${failed() ? failureReason() : 'image loading'}`}
           title={failureReason() || undefined}
         >
-          {failed() ? 'Image unavailable' : '…'}
+          {props.placeholder || (failed() ? 'Image unavailable' : '…')}
         </span>
       }
     >

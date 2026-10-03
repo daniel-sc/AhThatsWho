@@ -2,6 +2,7 @@ import { afterEach, describe, it, expect } from 'vitest';
 import {
   AhThatsWhoDB,
   saveHousehold,
+  savePersonImage,
   saveCapture,
   saveContext,
   backupState,
@@ -76,6 +77,37 @@ describe('household search', () => {
   });
 });
 describe('transactions and history', () => {
+  it('image-only last-save-wins preserves current text and history without reviving deleted people', async () => {
+    const d = database();
+    const b = await seed(d);
+    const original = b.households[0];
+    const id = original.household.id;
+    const personId = original.household.people[0].id;
+    const changed = structuredClone(original.household);
+    changed.notes = 'Edited while the image dialog was open';
+    await saveHousehold(changed, original.versionId, undefined, d);
+    await savePersonImage(id, personId, 'a'.repeat(64), d);
+    const latest = await savePersonImage(id, personId, 'b'.repeat(64), d);
+    expect(latest.household.notes).toBe(changed.notes);
+    expect(latest.household.people[0].imageAssetId).toBe('b'.repeat(64));
+    expect(
+      (await d.revisions.toArray()).some(
+        (r) => r.record.household.people[0].imageAssetId === 'a'.repeat(64),
+      ),
+    ).toBe(true);
+    const removed = await savePersonImage(id, personId, undefined, d);
+    expect(removed.household.people[0].imageAssetId).toBeUndefined();
+    const withoutPerson = structuredClone(removed.household);
+    withoutPerson.people = withoutPerson.people.filter((p) => p.id !== personId);
+    const saved = await saveHousehold(withoutPerson, removed.versionId, undefined, d);
+    await expect(savePersonImage(id, personId, 'a'.repeat(64), d)).rejects.toThrow(
+      'person no longer exists',
+    );
+    await trashHousehold(id, saved.versionId, false, d);
+    await expect(
+      savePersonImage(id, withoutPerson.people[0].id, 'a'.repeat(64), d),
+    ).rejects.toThrow('household no longer exists');
+  });
   it('treats an image-only change as a revision and restores its original association', async () => {
     const d = database();
     const b = await seed(d);

@@ -10,8 +10,7 @@ import {
   type Value,
   type BirthDate,
 } from '../domain/types';
-import { PersonImage } from './PersonImage';
-import { ImageCropper } from './ImageCropper';
+import { PersonImageFields } from './PersonImageFields';
 export function Editor(props: {
   initial: Household;
   contexts: Context[];
@@ -29,7 +28,6 @@ export function Editor(props: {
   const [ready, setReady] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [draftStatus, setDraftStatus] = createSignal('');
-  const [crop, setCrop] = createSignal<{ personId: string; file: File }>();
   let writes = Promise.resolve();
   // Saving can unmount this editor and clear parent state before draft cleanup.
   const draftKey = props.draftKey;
@@ -332,43 +330,16 @@ export function Editor(props: {
               return (
                 <fieldset class="person-editor" ref={container}>
                   <legend>Person</legend>
-                  <div class="person-image-editor">
-                    <Show when={h().people.find((p) => p.id === id)?.imageAssetId}>
-                      {(assetId) => (
-                        <PersonImage
-                          assetId={assetId()}
-                          name={personName(h().people.find((p) => p.id === id)!)}
-                        />
-                      )}
-                    </Show>
-                    <div>
-                      <label class="file-button">
-                        {h().people.find((p) => p.id === id)?.imageAssetId
-                          ? 'Replace image'
-                          : '+ Add image'}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          aria-label={`Choose image for ${personName(h().people.find((p) => p.id === id)!)}`}
-                          onChange={(event) => {
-                            const file = event.currentTarget.files?.[0];
-                            event.currentTarget.value = '';
-                            if (file) setCrop({ personId: id, file });
-                          }}
-                        />
-                      </label>
-                      <Show when={h().people.find((p) => p.id === id)?.imageAssetId}>
-                        <button
-                          type="button"
-                          class="quiet danger"
-                          onClick={() => person(id, (p) => delete p.imageAssetId)}
-                        >
-                          Remove image
-                        </button>
-                      </Show>
-                      <p class="fine muted">Choose a photo, then crop to this person.</p>
-                    </div>
-                  </div>
+                  <PersonImageFields
+                    name={personName(h().people.find((p) => p.id === id)!)}
+                    assetId={h().people.find((p) => p.id === id)?.imageAssetId}
+                    change={(assetId) =>
+                      person(id, (p) => {
+                        if (assetId) p.imageAssetId = assetId;
+                        else delete p.imageAssetId;
+                      })
+                    }
+                  />
                   <Show when={visible().includes('firstName')}>
                     <div data-field="firstName">
                       <ValueInput id={id} field="firstName" label="First name" />
@@ -528,21 +499,6 @@ export function Editor(props: {
             </button>
           </div>
         </form>
-      </Show>
-      <Show when={crop()} keyed>
-        {(selection) => (
-          <ImageCropper
-            file={selection.file}
-            name={personName(h().people.find((p) => p.id === selection.personId)!)}
-            accept={(assetId) => {
-              person(selection.personId, (p) => {
-                p.imageAssetId = assetId;
-              });
-              setCrop(undefined);
-            }}
-            cancel={() => setCrop(undefined)}
-          />
-        )}
       </Show>
     </section>
   );

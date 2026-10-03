@@ -4,6 +4,27 @@ Product design, library baseline, and OPFS local asset storage agreed through th
 
 ## Settled
 
+### Optional inline layout follow-up (2026-10-03)
+
+The design interview is complete and the user authorized implementation. These choices supersede the original card-layout and editor-entry restrictions below only where stated.
+
+- Offer an optional inline layout in home/search results, disabled by default and remembered per installation rather than carried in notebook backups.
+- When enabled, replace the right-hand household portrait with an image or placeholder before every person's name, including children and other household members. When disabled, retain the original card layout.
+- Clicking an inline image or placeholder opens an image-only editor with its own Save/Cancel and add, replace, and remove actions. Outside the image button's hit area, clicking names or the remaining card opens household details.
+- Keep image-editing code off the list's startup execution path. Loading the image-only editor and cropper together on image click is acceptable; prefer the simplest boundary over requiring a second load after file selection. Opening the list must not import or initialize the editor. Retain existing offline precaching; background caching is separate from executing editor code in the page.
+- Setting label: “I'll sacrifice quick recognition to satisfy my completeness itch”. Supporting text: “Show a small picture or placeholder beside every name.” The smaller portraits trade recognition detail for showing a slot for everyone.
+- Size inline pictures to the surrounding name text, with larger pictures for adult names and smaller pictures for children/other members. Prefer font-relative CSS sizing rather than measured or hard-coded per-role dimensions.
+- Use an equally sized, quiet placeholder for a missing image: a subtle dashed outline and a faint silhouette of the existing “ah!” brand mark. It should read as empty without competing with names or real pictures. Slightly enlarge the image button's hit area without reserving extra layout space or increasing line height. It may overlap the name/card navigation area; the image action takes precedence there and must not also open household details. Keep separate image buttons accessible without nesting them inside a card button.
+- Concurrent image edits use last-save-wins; no image-conflict resolution interface is required. The image-only operation should change only the selected person's image on the latest household record, preserving unrelated fields. This does not change concurrency rules for the existing full household editor.
+- Save commits the staged image change. Cancel, Escape, or closing the editor discards it without an extra confirmation. Clicking outside the dialog leaves it open.
+- A missing/deleted person or household must not be recreated by an image save; explain that the edit can no longer be saved.
+
+No design questions remain open.
+
+Implementation guidance from code inspection: reuse `ImageCropper` and the existing image asset pipeline. Extract the image picker/preview/remove controls currently embedded in `Editor` into a small shared component; keep household draft handling in the household editor and image-only Save/Cancel in a lazy-loaded dialog wrapper. The cropper already returns a staged asset ID without committing a household. Adjust its household-specific save explanation for each host, and make backdrop dismissal configurable in `ImageDialog` so the new editor follows the agreed dismissal behavior. Keep these editing components outside the list's static import graph.
+
+### Original image feature
+
 - Each person can have one identifying image, used to help recognize them.
 - Users select an image through the device file/photo picker, with cropping supported so a person can be selected from a group photo.
 - Show person images in household details and home/search results.

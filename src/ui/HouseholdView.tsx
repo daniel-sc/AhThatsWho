@@ -1,5 +1,12 @@
 import { For, Show } from 'solid-js';
-import { dateText, personName, type Context, type Household, type Value } from '../domain/types';
+import {
+  dateText,
+  personName,
+  type Context,
+  type Household,
+  type Person,
+  type Value,
+} from '../domain/types';
 import { highlight, matchingExcerpt } from '../domain/search';
 import { PersonImage } from './PersonImage';
 export const certainty = (v?: Value<unknown>) =>
@@ -17,10 +24,43 @@ export function HouseholdView(props: {
   query?: string;
   compact?: boolean;
   review?: boolean;
+  editImage?: (person: Person) => void;
 }) {
   const h = () => props.household;
   const names = () => h().people.filter((p) => p.role === 'adult' || !p.role);
   const others = () => h().people.filter((p) => p.role === 'child' || p.role === 'other');
+  function InlineImage(p: { person: Person }) {
+    return (
+      <Show when={props.compact && props.editImage}>
+        <button
+          type="button"
+          class="inline-image-button"
+          data-person-image={p.person.id}
+          aria-label={`${p.person.imageAssetId ? 'Edit' : 'Add'} image for ${personName(p.person)}`}
+          onClick={() => props.editImage?.(p.person)}
+        >
+          <Show
+            when={p.person.imageAssetId}
+            fallback={
+              <span class="inline-image-placeholder" aria-hidden="true">
+                <span class="inline-empty-mark" />
+              </span>
+            }
+          >
+            {(assetId) => (
+              <PersonImage
+                assetId={assetId()}
+                name={personName(p.person)}
+                preview
+                class="inline-portrait"
+                placeholder={<span class="inline-empty-mark" aria-hidden="true" />}
+              />
+            )}
+          </Show>
+        </button>
+      </Show>
+    );
+  }
   const summary = () =>
     props.compact
       ? h().cue?.trim() ||
@@ -29,7 +69,7 @@ export function HouseholdView(props: {
       : h().cue;
   return (
     <div class="household" classList={{ 'compact-household': props.compact }}>
-      <Show when={props.compact && h().people.find((p) => p.imageAssetId)}>
+      <Show when={props.compact && !props.editImage && h().people.find((p) => p.imageAssetId)}>
         {(person) => (
           <PersonImage
             class="card-portrait"
@@ -48,6 +88,7 @@ export function HouseholdView(props: {
             <For each={names()}>
               {(p) => (
                 <span class="person-name">
+                  <InlineImage person={p} />
                   <Show when={p.firstName?.value}>
                     <span class="first-name">
                       <Highlight
@@ -84,6 +125,7 @@ export function HouseholdView(props: {
                   {(p, i) => (
                     <>
                       <Show when={i() > 0}> · </Show>
+                      <InlineImage person={p} />
                       <Highlight
                         text={personName(p) + certainty(p.firstName) + certainty(p.lastName)}
                         query={props.query}

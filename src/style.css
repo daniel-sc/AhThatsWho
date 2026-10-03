@@ -371,6 +371,7 @@ main[data-screen='home'] {
   background: transparent;
   gap: 12px;
   font-weight: 400;
+  line-height: 1.35;
 }
 .household-row:hover {
   background-color: #f2f3ff;
@@ -400,7 +401,7 @@ main[data-screen='home'] {
 .first-name {
   margin-right: 0.12em;
 }
-.last-name:not(:only-child) {
+.first-name ~ .last-name {
   font-family: 'Atkinson', 'Segoe UI', sans-serif;
   font-size: 1rem;
   font-weight: 500;
@@ -642,7 +643,8 @@ main[data-screen='household']
   > .household
   > .household-text
   > .names
-  .last-name:not(:only-child) {
+  .first-name
+  ~ .last-name {
   font-size: 1.25rem;
 }
 main[data-screen='household'] section > .fine {
@@ -1276,6 +1278,92 @@ mark {
 }
 .card-portrait {
   order: 2;
+}
+.inline-image-row {
+  position: relative;
+}
+.household-open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.household-open:hover {
+  background: transparent;
+}
+.inline-image-row > .household,
+.inline-image-row > .row-arrow {
+  pointer-events: none;
+}
+.inline-image-button {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  vertical-align: middle;
+  /* `middle` uses x-height; lift the square to the center of capital letters. */
+  transform: translateY(-0.08em);
+  transform: translateY(calc((1ex - 1cap) / 2));
+  width: 1em;
+  height: 1em;
+  min-height: 0;
+  padding: 0;
+  margin: 0 0.25em 0 0;
+  border: 0;
+  border-radius: 0.15em;
+  font: inherit;
+  line-height: 1;
+  pointer-events: auto;
+}
+/* Center on the name's capital height, independent of image/placeholder baselines. */
+.inline-image-button > span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+}
+/* Expand only hit testing, leaving text spacing and line height unchanged. */
+.inline-image-button::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+}
+.inline-portrait,
+.inline-image-placeholder {
+  display: inline-grid;
+  place-items: center;
+  width: 1em;
+  height: 1em;
+  border-radius: 0.15em;
+  background: var(--surface);
+  color: var(--muted);
+}
+.inline-portrait .portrait-placeholder {
+  padding: 0;
+  font-size: inherit;
+}
+.inline-image-placeholder,
+.inline-portrait .portrait-placeholder {
+  border: 1px dashed #bcb8b1;
+  border-radius: inherit;
+  background: var(--paper);
+}
+.inline-empty-mark {
+  display: block;
+  width: 75%;
+  height: 75%;
+  background: var(--muted);
+  opacity: 0.35;
+  mask: url('/brand-mark.png') center / contain no-repeat;
+}
+.inline-image-button:hover .inline-image-placeholder {
+  border-color: var(--muted);
+}
+.image-editor-fields {
+  border: 0;
+  padding: 0;
+  margin: 0 0 24px;
+  min-width: 0;
 }
 .portrait-placeholder {
   display: grid;

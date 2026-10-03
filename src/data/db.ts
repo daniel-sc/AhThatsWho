@@ -108,6 +108,19 @@ export function saveHousehold(
     async () => await writeHousehold(h, expected, source, d),
   );
 }
+/** Image-only saves use the latest household, so unrelated edits are never rolled back. */
+export function savePersonImage(householdId: string, personId: string, assetId?: string, d = db) {
+  return d.transaction('rw', [d.households, d.contexts, d.revisions, d.meta], async () => {
+    const current = await d.households.get(householdId);
+    assert(current && !current.deletedAt, 'This household no longer exists.');
+    const household = structuredClone(current.household);
+    const person = household.people.find((p) => p.id === personId);
+    assert(person, 'This person no longer exists.');
+    if (assetId) person.imageAssetId = assetId;
+    else delete person.imageAssetId;
+    return writeHousehold(household, current.versionId, { kind: 'manual' }, d);
+  });
+}
 export function trashHousehold(id: string, expected: string, restore = false, d = db) {
   return d.transaction('rw', [d.households, d.contexts, d.revisions, d.meta], async () => {
     const r = await d.households.get(id);

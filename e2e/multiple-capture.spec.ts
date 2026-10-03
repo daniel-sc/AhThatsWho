@@ -214,3 +214,44 @@ test('review using current data bypasses an obsolete recovered editor draft', as
   await expect(page.getByRole('heading', { name: 'Saved 2 households' })).toBeVisible();
   await other.close();
 });
+
+test('saved voice captures with an outdated stage appear only in Completed', async ({ page }) => {
+  const backup = fixtures(1);
+  const row = backup.households[0];
+  backup.inbox = [
+    {
+      id: 'old-voice-capture',
+      kind: 'audio',
+      createdAt: backup.exportedAt,
+      updatedAt: backup.exportedAt,
+      hints: {},
+      stage: 'missing-source',
+      receipt: {
+        householdId: row.household.id,
+        versionId: row.versionId,
+        appliedAt: backup.exportedAt,
+      },
+    },
+  ];
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'old-capture.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(backup)),
+  });
+  await page.getByRole('button', { name: 'Replace & use this dataset' }).click();
+  await page.getByRole('link', { name: /Inbox/ }).click();
+  await expect(page.getByRole('button', { name: 'To review · 0' })).toBeVisible();
+  await expect(page.locator('.inbox-row')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Completed', exact: true }).click();
+  await expect(page.locator('.inbox-row')).toHaveCount(1);
+  await expect(page.locator('.inbox-row')).toContainText('Applied');
+  await page.locator('.inbox-row').click();
+  await expect(page.getByRole('heading', { name: 'Saved 1 household' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Saved 1 household' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Discard capture' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Process with OpenAI' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open household' })).toBeVisible();
+});

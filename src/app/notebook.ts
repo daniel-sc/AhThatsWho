@@ -12,7 +12,12 @@ import { useBeforeLeave, useCurrentMatches, useLocation, useNavigate } from '@so
 import { liveQuery } from 'dexie';
 import { useRegisterSW } from 'virtual:pwa-register/solid';
 import { db, getMeta, setMeta, recoverInterrupted } from '../data/db';
-import type { HouseholdRecord, Context, Capture } from '../domain/types';
+import {
+  captureCompleted,
+  type HouseholdRecord,
+  type Context,
+  type Capture,
+} from '../domain/types';
 import { createSearchIndex, searchIndex } from '../domain/search';
 import { startBackup } from './backup';
 import { createInstallation } from '../ui/InstallHelp';
@@ -90,9 +95,7 @@ export function createNotebook() {
   const activeCapture = createMemo(() => inbox().find((c) => c.id === ui().capture));
   const index = createMemo(() => createSearchIndex(rows(), contexts()));
   const results = createMemo(() => searchIndex(index(), ui().query, ui().context || undefined));
-  const unresolved = createMemo(() =>
-    inbox().filter((c) => !['applied', 'discarded'].includes(c.stage)),
-  );
+  const unresolved = createMemo(() => inbox().filter((c) => !captureCompleted(c)));
   function anchor() {
     const row = [...document.querySelectorAll<HTMLElement>('[data-household]')].find(
       (e) => e.getBoundingClientRect().bottom > 0,

@@ -5,6 +5,7 @@ import {
   uuid,
   captureDrafts,
   captureReceipts,
+  captureCompleted,
   personName,
   type Capture,
   type Context,
@@ -48,7 +49,7 @@ export function Review(props: {
   const c = () => props.capture;
   const drafts = () => captureDrafts(c());
   const receipts = () => captureReceipts(c());
-  const completed = () => ['applied', 'discarded'].includes(c().stage);
+  const completed = () => captureCompleted(c());
   const processing = () => busy() || !!c().attempt;
   const source = () => [c().text, c().transcript].filter(Boolean).join('\n');
   const current = (p: Proposal) => props.rows.find((r) => r.household.id === p.targetId);
@@ -317,7 +318,7 @@ export function Review(props: {
               }}
             </For>
           </Show>
-          <Show when={c().error}>
+          <Show when={c().error && !completed()}>
             <p class="notice" role="alert">
               {c().error}
             </p>

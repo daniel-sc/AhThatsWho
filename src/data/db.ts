@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie';
 import {
   now,
+  captureCompleted,
   uuid,
   type AudioRecord,
   type BackupState,
@@ -158,7 +159,7 @@ export function saveCapture(c: Capture, d = db) {
 export async function recoverInterrupted(d = db) {
   await d.transaction('rw', [d.inbox, d.audio, d.meta], async () => {
     for (const c of await d.inbox.toArray()) {
-      if (c.stage === 'applied' || c.stage === 'discarded') {
+      if (captureCompleted(c)) {
         if (c.audioId) {
           await d.audio.delete(c.audioId);
           await d.inbox.update(c.id, { audioId: undefined });

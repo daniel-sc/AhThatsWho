@@ -10,6 +10,7 @@ import {
   type Value,
   captureDrafts,
   captureReceipts,
+  captureCompleted,
 } from '../domain/types';
 import { parseBackup, validateBackup } from '../domain/integrity';
 import { db, getMeta, setMeta, backupState, type AhThatsWhoDB } from '../data/db';
@@ -73,8 +74,7 @@ export const cleanProposal = (p: Proposal): Proposal => ({
   edited: p.edited,
 });
 export function cleanCapture(c: Capture): Capture {
-  const missing =
-    c.kind === 'audio' && !c.transcript && !c.text && !['applied', 'discarded'].includes(c.stage);
+  const missing = c.kind === 'audio' && !c.transcript && !c.text && !captureCompleted(c);
   return {
     id: c.id,
     createdAt: c.createdAt,

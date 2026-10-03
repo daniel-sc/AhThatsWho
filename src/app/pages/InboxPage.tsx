@@ -1,4 +1,5 @@
 import { Show, For } from 'solid-js';
+import { captureStage, captureCompleted } from '../../domain/types';
 import { usePage } from '../page';
 
 export default function InboxPage() {
@@ -24,9 +25,7 @@ export default function InboxPage() {
       </div>
       <For
         each={inbox()
-          .filter((c) =>
-            ui().completed ? c.stage === 'applied' : !['applied', 'discarded'].includes(c.stage),
-          )
+          .filter((c) => (ui().completed ? captureStage(c) === 'applied' : !captureCompleted(c)))
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt))}
       >
         {(c) => (
@@ -37,18 +36,18 @@ export default function InboxPage() {
             </span>
             <strong>{(c.transcript || c.text || 'Saved audio recording').slice(0, 160)}</strong>
             <span class="muted">
-              {c.attempt
-                ? 'Processing…'
-                : c.error
-                  ? 'Retry · ' + c.error
-                  : c.stage === 'proposed'
-                    ? 'Review proposal'
-                    : c.stage === 'needs-target'
-                      ? 'Choose target'
-                      : c.stage === 'missing-source'
-                        ? 'Recover missing source'
-                        : c.stage === 'applied'
-                          ? 'Applied'
+              {captureStage(c) === 'applied'
+                ? 'Applied'
+                : c.attempt
+                  ? 'Processing…'
+                  : c.error
+                    ? 'Retry · ' + c.error
+                    : c.stage === 'proposed'
+                      ? 'Review proposal'
+                      : c.stage === 'needs-target'
+                        ? 'Choose target'
+                        : c.stage === 'missing-source'
+                          ? 'Recover missing source'
                           : c.kind === 'audio' && !c.transcript
                             ? 'Transcribe'
                             : 'Process or review manually'}{' '}
@@ -57,7 +56,7 @@ export default function InboxPage() {
           </button>
         )}
       </For>
-      <Show when={ui().completed && !inbox().some((c) => c.stage === 'applied')}>
+      <Show when={ui().completed && !inbox().some((c) => captureStage(c) === 'applied')}>
         <div class="empty-state">
           <h2>No completed captures yet.</h2>
           <p>Notes you apply to your notebook will appear here.</p>

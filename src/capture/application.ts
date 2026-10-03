@@ -11,6 +11,8 @@ import {
   type Proposal,
   captureDrafts,
   captureReceipts,
+  captureCompleted,
+  captureStage,
   type CaptureReceipt,
 } from '../domain/types';
 function factText(value: unknown): string {
@@ -135,7 +137,7 @@ export async function saveDraft(
 ) {
   return d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
-    assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture already completed');
+    assert(c && !captureCompleted(c), 'Capture already completed');
     assert(
       !c.attempt && !c.sourceChanged,
       'Finish processing the current source before editing drafts',
@@ -159,7 +161,8 @@ export async function saveDraft(
 export async function discardCapture(id: string, d = db) {
   await d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
-    assert(c && !captureReceipts(c).length, 'Capture cannot be discarded');
+    assert(c, 'Capture not found');
+    assert(captureStage(c) !== 'applied', 'This capture was already applied');
     c.stage = 'discarded';
     delete c.attempt;
     c.updatedAt = now();
@@ -174,7 +177,7 @@ export async function updateTranscript(id: string, text: string, d = db) {
   assert(text.trim(), 'Enter source text');
   await d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
-    assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture is already completed');
+    assert(c && !captureCompleted(c), 'Capture is already completed');
     if (c.kind === 'text') {
       c.text = text.trim();
       delete c.transcript;
@@ -197,7 +200,7 @@ export async function storeProposals(
 ) {
   return d.transaction('rw', [d.inbox, d.meta], async () => {
     const c = await d.inbox.get(id);
-    assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture is already completed');
+    assert(c && !captureCompleted(c), 'Capture is already completed');
     if (attempt && c.attempt !== attempt) return false;
     if (replaceIndex !== undefined) {
       const previous = captureDrafts(c);

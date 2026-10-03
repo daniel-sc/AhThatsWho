@@ -1,8 +1,17 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import Dexie from 'dexie';
-import { AhThatsWhoDB, db, saveCapture, saveHousehold, backupState } from '../src/data/db';
+import {
+  AhThatsWhoDB,
+  db,
+  saveCapture,
+  saveHousehold,
+  backupState,
+  recoverInterrupted,
+} from '../src/data/db';
 import {
   applyCapture,
+  discardCapture,
+  storeProposals,
   manualProposal,
   saveDraft,
   updateTranscript,
@@ -11,7 +20,14 @@ import { processCapture } from '../src/capture/process';
 import * as api from '../src/providers/openai';
 import { snapshot, replaceData, importPreview } from '../src/backup/portable';
 import { fixtures } from '../src/domain/fixtures';
-import { captureDrafts, now, uuid, type Capture } from '../src/domain/types';
+import {
+  captureDrafts,
+  captureStage,
+  captureCompleted,
+  now,
+  uuid,
+  type Capture,
+} from '../src/domain/types';
 const databases: AhThatsWhoDB[] = [];
 function database() {
   const d = new AhThatsWhoDB(uuid());
@@ -186,4 +202,56 @@ it('opens a version 1 local database and imports singular captures without losin
   expect(clean.inbox[0].proposal).toBeUndefined();
   await replaceData(clean, upgraded);
   expect(await applyCapture(c.id, true, upgraded)).toHaveLength(1);
+});
+
+it('protects saved audio captures with an outdated stage, including after backup restore', async () => {
+  await db.open();
+  const c = capture();
+  c.proposals = [fresh()];
+  await saveCapture(c);
+  const receipts = await applyCapture(c.id, true);
+  const saved = (await db.inbox.get(c.id))!;
+  saved.kind = 'audio';
+  delete saved.text;
+  saved.stage = 'missing-source';
+  saved.audioMissing = true;
+  // Older installations stored a single receipt.
+  saved.receipt = receipts[0];
+  delete saved.receipts;
+  saved.audioId = uuid();
+  await saveCapture(saved);
+  await db.audio.put({
+    id: saved.audioId,
+    captureId: c.id,
+    chunks: [new Blob(['audio'])],
+    mime: 'audio/webm',
+    complete: true,
+  });
+  await recoverInterrupted();
+  expect(await db.audio.get(saved.audioId)).toBeUndefined();
+  expect((await db.inbox.get(c.id))?.stage).toBe('missing-source');
+
+  const assertProtected = async () => {
+    const current = (await db.inbox.get(c.id))!;
+    expect(captureStage(current)).toBe('applied');
+    expect(captureCompleted(current)).toBe(true);
+    const before = await snapshot();
+    await expect(updateTranscript(c.id, 'Changed source')).rejects.toThrow('completed');
+    await expect(saveDraft(c.id, 0, fresh(), saved.proposals![0])).rejects.toThrow('completed');
+    await expect(storeProposals(c.id, [fresh()])).rejects.toThrow('completed');
+    await expect(processCapture(c.id)).rejects.toThrow('completed');
+    await expect(discardCapture(c.id)).rejects.toThrow('already applied');
+    expect(await applyCapture(c.id, true)).toEqual(receipts);
+    const after = await snapshot();
+    expect(after.inbox).toEqual(before.inbox);
+    expect(after.households).toEqual(before.households);
+  };
+  await assertProtected();
+  await replaceData(importPreview(JSON.stringify(await snapshot())));
+  await assertProtected();
+
+  const unfinished = { ...capture(), kind: 'audio' as const, stage: 'missing-source' as const };
+  await saveCapture(unfinished);
+  await discardCapture(unfinished.id);
+  expect((await db.inbox.get(unfinished.id))?.stage).toBe('discarded');
 });

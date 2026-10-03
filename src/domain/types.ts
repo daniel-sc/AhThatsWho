@@ -100,6 +100,11 @@ export const captureDrafts = (c: Capture): Proposal[] =>
   c.proposals ?? (c.proposal ? [c.proposal] : []);
 export const captureReceipts = (c: Capture): CaptureReceipt[] =>
   c.receipts ?? (c.receipt ? [c.receipt] : []);
+// Save receipts are authoritative even when an older capture has an outdated stage.
+export const captureStage = (c: Capture): Stage =>
+  captureReceipts(c).length ? 'applied' : c.stage;
+export const captureCompleted = (c: Capture): boolean =>
+  ['applied', 'discarded'].includes(captureStage(c));
 export interface AudioRecord {
   id: string;
   captureId: string;

@@ -2,7 +2,7 @@ import { defaultRecognitionLanguages } from '../domain/languages';
 import type { Preferences } from '../domain/types';
 import { db, dirty, getMeta } from '../data/db';
 import { assert } from '../domain/integrity';
-import { uuid, now, captureDrafts } from '../domain/types';
+import { uuid, now, captureDrafts, captureCompleted } from '../domain/types';
 import { storeProposals } from './application';
 import type { GenerationMode } from '../providers/openai-contract';
 export async function processCapture(
@@ -13,7 +13,7 @@ export async function processCapture(
   const attempt = uuid();
   await db.transaction('rw', [db.inbox, db.meta], async () => {
     const c = await db.inbox.get(id);
-    assert(c && !['applied', 'discarded'].includes(c.stage), 'Capture already completed');
+    assert(c && !captureCompleted(c), 'Capture already completed');
     assert(
       draftIndex === undefined ||
         (mode === 'new' && !c.sourceChanged && captureDrafts(c)[draftIndex]),

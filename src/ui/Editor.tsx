@@ -307,9 +307,10 @@ export function Editor(props: {
                 { key: 'birthDate', label: 'Birth date' },
                 { key: 'ageNote', label: 'Age note' },
                 { key: 'notes', label: 'Notes' },
+                { key: 'imageAssetId', label: 'Image' },
               ] as const;
               type Field = (typeof fields)[number]['key'];
-              const isBlank = !fields.some(({ key }) => p?.[key]);
+              const isBlank = !fields.some(({ key }) => key !== 'imageAssetId' && p?.[key]);
               // Visibility belongs to this editing session, not the changing field values.
               const [visible, setVisible] = createSignal<Field[]>(
                 fields
@@ -330,16 +331,20 @@ export function Editor(props: {
               return (
                 <fieldset class="person-editor" ref={container}>
                   <legend>Person</legend>
-                  <PersonImageFields
-                    name={personName(h().people.find((p) => p.id === id)!)}
-                    assetId={h().people.find((p) => p.id === id)?.imageAssetId}
-                    change={(assetId) =>
-                      person(id, (p) => {
-                        if (assetId) p.imageAssetId = assetId;
-                        else delete p.imageAssetId;
-                      })
-                    }
-                  />
+                  <Show when={visible().includes('imageAssetId')}>
+                    <div data-field="imageAssetId">
+                      <PersonImageFields
+                        name={personName(h().people.find((p) => p.id === id)!)}
+                        assetId={h().people.find((p) => p.id === id)?.imageAssetId}
+                        change={(assetId) =>
+                          person(id, (p) => {
+                            if (assetId) p.imageAssetId = assetId;
+                            else delete p.imageAssetId;
+                          })
+                        }
+                      />
+                    </div>
+                  </Show>
                   <Show when={visible().includes('firstName')}>
                     <div data-field="firstName">
                       <ValueInput id={id} field="firstName" label="First name" />
@@ -394,7 +399,6 @@ export function Editor(props: {
                   </Show>
                   <Show when={visible().length < fields.length}>
                     <div class="add-detail-row" role="group" aria-label="Add person detail">
-                      <span>Add detail</span>
                       <For each={fields.filter(({ key }) => !visible().includes(key))}>
                         {(field) => (
                           <button type="button" onClick={() => addField(field.key)}>

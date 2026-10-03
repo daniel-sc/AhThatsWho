@@ -148,7 +148,7 @@ export const uuid = () => crypto.randomUUID();
 export const now = () => new Date().toISOString();
 export const emptyHousehold = (): Household => ({ id: uuid(), people: [], contextIds: [] });
 export const personName = (p: Person) =>
-  [p.firstName?.value, p.lastName?.value].filter(Boolean).join(' ') || 'Unknown name';
+  [p.firstName?.value, p.lastName?.value].filter(Boolean).join(' ') || 'Unknown';
 export const dateText = (d: BirthDate) =>
   d.kind === 'year'
     ? String(d.year)

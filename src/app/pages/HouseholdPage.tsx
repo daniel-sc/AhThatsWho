@@ -31,6 +31,7 @@ export default function HouseholdPage() {
           <button class="primary" onClick={capture}>
             Capture an update
           </button>
+          <button onClick={beginEdit}>Edit manually</button>
           <button onClick={() => void history()}>History</button>
           <button
             class="quiet danger"

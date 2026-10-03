@@ -19,6 +19,7 @@ test('person images publish before drafts, survive reopen, and recover in a ZIP'
       .first()
       .click();
     await page.getByLabel('First name', { exact: true }).fill('Avery');
+    await page.getByRole('button', { name: 'Image', exact: true }).click();
     const bytes = await page.evaluate(async () => {
       const canvas = document.createElement('canvas');
       canvas.width = 900;

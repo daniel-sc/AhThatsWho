@@ -735,10 +735,6 @@ legend + * {
   gap: 4px 8px;
   margin: 12px 0;
 }
-.add-detail-row > span {
-  color: var(--muted);
-  font-size: 0.875rem;
-}
 .add-detail-row button {
   padding: 8px 10px;
   font-size: 0.875rem;

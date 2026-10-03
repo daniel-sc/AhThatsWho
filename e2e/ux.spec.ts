@@ -132,7 +132,7 @@ test('lookup retains partial names, certainty, contexts and matching notes in co
     'Zeller ?',
     'Alexandria-Christiane ≈',
     'von Schwarzenberg',
-    'Unknown name',
+    'Unknown',
     'Robin',
     'School',
     'Garden club',

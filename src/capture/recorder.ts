@@ -44,6 +44,21 @@ export async function startRecording(
   let writes = Promise.resolve();
   let failed = false;
   let stopped = false;
+  let wakeLock: WakeLockSentinel | undefined;
+  const releaseWakeLock = () => {
+    void wakeLock?.release().catch(() => {});
+    wakeLock = undefined;
+  };
+  const keepScreenAwake = async () => {
+    try {
+      const lock = await navigator.wakeLock?.request('screen');
+      // The recording may have ended while the request was pending.
+      if (stopped) await lock?.release();
+      else wakeLock = lock;
+    } catch {
+      // Keeping the screen awake is only a convenience.
+    }
+  };
   recorder.ondataavailable = (e) => {
     if (!e.data.size) return;
     writes = writes
@@ -64,6 +79,7 @@ export async function startRecording(
   const stop = () => {
     if (stopped) return;
     stopped = true;
+    releaseWakeLock();
     try {
       if (recorder.state !== 'inactive') recorder.stop();
     } finally {
@@ -81,6 +97,8 @@ export async function startRecording(
     stop();
   };
   recorder.onstop = async () => {
+    stopped = true;
+    releaseWakeLock();
     stream.getTracks().forEach((t) => t.stop());
     document.removeEventListener('visibilitychange', hidden);
     window.removeEventListener('pagehide', stop);
@@ -105,6 +123,7 @@ export async function startRecording(
     if (document.hidden)
       throw new Error('Recording did not start because the app was backgrounded.');
     recorder.start(1000);
+    void keepScreenAwake();
   } catch (error) {
     stream.getTracks().forEach((t) => t.stop());
     document.removeEventListener('visibilitychange', hidden);

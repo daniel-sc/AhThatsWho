@@ -113,28 +113,62 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   expect(remaining).toBe(0);
 });
 
-test('backgrounding a recording keeps it in Inbox without starting processing', async ({
-  page,
-}) => {
-  let requests = 0;
-  await page.route('**/api/ai/**', async (route) => {
-    requests++;
-    await route.abort();
+for (const wakeLock of ['acquired', 'pending', 'rejected', 'unsupported'] as const) {
+  test(`backgrounding saves recording with ${wakeLock} wake lock`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.addInitScript((mode) => {
+      Object.defineProperty(navigator, 'wakeLock', {
+        configurable: true,
+        value:
+          mode === 'unsupported'
+            ? undefined
+            : {
+                async request(type: string) {
+                  document.documentElement.dataset.wakeLockRequested = type;
+                  if (mode === 'rejected') throw new Error('Wake lock denied');
+                  if (mode === 'pending')
+                    await new Promise<void>((resolve) =>
+                      window.addEventListener('resolve-wake-lock', () => resolve(), { once: true }),
+                    );
+                  return {
+                    async release() {
+                      document.documentElement.dataset.wakeLockReleased = 'true';
+                    },
+                  };
+                },
+              },
+      });
+    }, wakeLock);
+    let requests = 0;
+    await page.route('**/api/ai/**', async (route) => {
+      requests++;
+      await route.abort();
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Capture', exact: true }).click();
+    await page.getByRole('button', { name: 'Record a voice note' }).click();
+    await expect(page.getByRole('button', { name: /Stop & process/ })).toBeVisible();
+    await page.waitForTimeout(1200);
+    if (wakeLock !== 'unsupported')
+      await expect(page.locator('html')).toHaveAttribute('data-wake-lock-requested', 'screen');
+    await expect(page.locator('html')).not.toHaveAttribute('data-wake-lock-released');
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(page.getByText('Audio saved on this device.', { exact: false })).toBeVisible();
+    if (wakeLock === 'pending')
+      await page.evaluate(() => window.dispatchEvent(new Event('resolve-wake-lock')));
+    if (wakeLock === 'acquired' || wakeLock === 'pending')
+      await expect(page.locator('html')).toHaveAttribute('data-wake-lock-released', 'true');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(errors).toEqual([]);
+    await page.reload();
+    await page.getByRole('link', { name: /Inbox/ }).click();
+    await page.getByRole('button', { name: /Saved audio recording/ }).click();
+    await page.getByRole('button', { name: 'Play saved recording' }).click();
+    await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
+    expect(requests).toBe(0);
   });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Capture', exact: true }).click();
-  await page.getByRole('button', { name: 'Record a voice note' }).click();
-  await expect(page.getByRole('button', { name: /Stop & process/ })).toBeVisible();
-  await page.waitForTimeout(1200);
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await expect(page.getByText('Audio saved on this device.', { exact: false })).toBeVisible();
-  await page.reload();
-  await page.getByRole('link', { name: /Inbox/ }).click();
-  await page.getByRole('button', { name: /Saved audio recording/ }).click();
-  await page.getByRole('button', { name: 'Play saved recording' }).click();
-  await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
-  expect(requests).toBe(0);
-});
+}

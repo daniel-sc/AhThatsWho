@@ -21,21 +21,8 @@
     },
   ],
   "vars": { "BACKUP_ORIGINS": "https://ahthatswho.com" },
-  "env": {
-    "preview": {
-      "name": "ahthatswho-drive-preview",
-      "preview_urls": true,
-      "d1_databases": [
-        {
-          "binding": "BACKUP_DB",
-          "database_name": "ahthatswho-backups-preview",
-          "database_id": "810f5185-7f34-4f15-97cf-776d695d7a0f",
-          "migrations_dir": "migrations",
-        },
-      ],
-      "vars": {
-        "BACKUP_ORIGINS": "https://branch-1670742325881135-ahthatswho-drive-preview.aged-bread-195a.workers.dev,https://ahthatswho-drive-preview.aged-bread-195a.workers.dev",
-      },
-    },
+  // Native branch previews are the default. Backup is intentionally out of scope.
+  "previews": {
+    "vars": { "BACKUP_ORIGINS": "" },
   },
 }

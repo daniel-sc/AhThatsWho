@@ -1,3 +1,4 @@
+import { ActionFeedback } from './ActionFeedback';
 import { createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { db, getMeta, setMeta, saveCapture } from '../data/db';
 import { now, uuid, type Capture } from '../domain/types';
@@ -19,6 +20,13 @@ export function CapturePanel(props: {
   const [busy, setBusy] = createSignal(false);
   const [ready, setReady] = createSignal(false);
   const [status, setStatus] = createSignal('');
+  const [actionOwner, setActionOwner] = createSignal('');
+  const [actionError, setActionError] = createSignal<{ owner: string; message: string }>();
+  const fail = (e: unknown, owner: string) =>
+    setActionError({
+      owner,
+      message: e instanceof Error ? e.message : 'This action failed. Try again.',
+    });
   let stop: (() => void) | undefined;
   let processOnStop = false;
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -44,6 +52,7 @@ export function CapturePanel(props: {
     props.recording(false);
   });
   function checkpoint(value: string) {
+    if (actionError()?.owner === 'text') setActionError(undefined);
     setText(value);
     setStatus('Saving draft…');
     writes = writes
@@ -53,10 +62,12 @@ export function CapturePanel(props: {
       })
       .catch((e) => {
         setStatus('Draft could not be saved');
-        props.error(e);
+        fail(e, 'text');
       });
   }
   async function record() {
+    setActionError(undefined);
+    setActionOwner('record');
     processOnStop = false;
     setBusy(true);
     try {
@@ -71,7 +82,7 @@ export function CapturePanel(props: {
           if (processOnStop && !c.audioMissing && !c.audioIncomplete) void persist(true);
         },
         (e) => {
-          props.error(e);
+          fail(e, 'record');
           setBusy(false);
         },
       );
@@ -81,13 +92,15 @@ export function CapturePanel(props: {
       props.recording(true);
       timer = setInterval(() => setSeconds((s) => s + 1), 1000);
     } catch (e) {
-      props.error(e);
+      fail(e, 'record');
     } finally {
       setBusy(false);
     }
   }
   async function persist(process: boolean) {
     if (busy()) return;
+    setActionError(undefined);
+    setActionOwner('save');
     setBusy(true);
     try {
       await writes;
@@ -117,7 +130,7 @@ export function CapturePanel(props: {
         void processCapture(c.id).catch(props.error);
       } else props.saved();
     } catch (e) {
-      props.error(e);
+      fail(e, 'save');
     } finally {
       setBusy(false);
     }
@@ -126,8 +139,7 @@ export function CapturePanel(props: {
     <section class="capture-panel">
       <h1>A name. A small detail.</h1>
       <p class="muted">
-        One note can cover several households. Say who belongs together; review each household
-        before saving.
+        One note can cover several households. Review the suggestions before saving.
       </p>
       <Show when={getAIMode() === 'personal' && !getKey()}>
         <div class="notice">
@@ -157,12 +169,14 @@ export function CapturePanel(props: {
         <span aria-hidden="true">{recording() ? '■' : '●'}</span>{' '}
         {recording() ? `Stop & process · ${seconds()}s` : 'Record a voice note'}
       </button>
+      <ActionFeedback
+        pending={
+          busy() && actionOwner() === 'record' && !recording() ? 'Opening microphone…' : undefined
+        }
+        error={actionError()?.owner === 'record' ? actionError()?.message : undefined}
+      />
       <p class="fine capture-help">
-        Stopping sends audio to OpenAI for transcription and a suggestion. Nothing changes until you
-        approve it.{' '}
-        {getAIMode() === 'sponsored'
-          ? 'Sponsored processing passes through our server.'
-          : 'Your personal API key pays for processing.'}
+        Stop to transcribe and prepare household suggestions. Review before saving.
       </p>
       <Show when={saved()}>
         <p role="status">
@@ -182,31 +196,47 @@ export function CapturePanel(props: {
         disabled={!ready()}
         onInput={(e) => checkpoint(e.currentTarget.value)}
         maxLength={20000}
-        rows={4}
+        rows={3}
       />
       <p class="fine" role="status">
         {status()}
       </p>
+      <ActionFeedback
+        error={actionError()?.owner === 'text' ? actionError()?.message : undefined}
+      />
       <div class="actions">
         <button
+          disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
           class="primary"
+          onClick={() => void persist(true)}
+        >
+          Process now
+        </button>
+        <button
           disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
           onClick={() => void persist(false)}
         >
           Save for later
         </button>
-        <button
-          disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
-          onClick={() => void persist(true)}
-        >
-          Process now
-        </button>
       </div>
+      <ActionFeedback
+        pending={busy() && actionOwner() === 'save' ? 'Saving your note…' : undefined}
+        error={actionError()?.owner === 'save' ? actionError()?.message : undefined}
+      />
       <p class="fine capture-help">
-        Save for later saves without processing. Process now sends your note and relevant notebook
-        details to OpenAI for review. Audio stays local until applied or discarded and is not
+        Process now asks AI for household suggestions you can review before saving. Save for later
+        keeps your note without processing. Audio stays local until applied or discarded and is not
         included in backups.
       </p>
+      <details class="review-details">
+        <summary>What is sent to AI?</summary>
+        <p class="fine">
+          Processing sends your recording or text and relevant notebook details to OpenAI.{' '}
+          {getAIMode() === 'sponsored'
+            ? 'Sponsored requests pass through our server.'
+            : 'Personal-key requests go directly to OpenAI and charge your account.'}
+        </p>
+      </details>
       <button
         class="quiet"
         disabled={recording() || busy()}

@@ -1,3 +1,4 @@
+import { ActionFeedback } from './ActionFeedback';
 import { liveQuery } from 'dexie';
 import { getMeta } from '../data/db';
 import { createEffect, createSignal, For, Show, onCleanup } from 'solid-js';
@@ -39,6 +40,36 @@ export function DriveBackup(props: {
   onCleanup(() => codeSubscription.unsubscribe());
   const [listed, setListed] = createSignal(false);
   let loaded = '';
+  const [owner, setOwner] = createSignal('');
+  const [running, setRunning] = createSignal(false);
+  const [error, setError] = createSignal('');
+  async function act(scope: string, fn: () => Promise<unknown>) {
+    if (props.busy || running()) return;
+    setOwner(scope);
+    setError('');
+    setRunning(true);
+    try {
+      await props.act(async () => {
+        try {
+          await fn();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : 'This action failed. Try again.');
+        }
+      });
+    } finally {
+      setRunning(false);
+    }
+  }
+  function Feedback(part: { owner: string; pending?: string }) {
+    return (
+      <div class="action-feedback">
+        <ActionFeedback
+          pending={owner() === part.owner && running() ? part.pending || 'Working…' : undefined}
+          error={owner() === part.owner ? error() : undefined}
+        />
+      </div>
+    );
+  }
   async function restore(snapshotId: string, historyId: string) {
     const notebook = importPreview(await downloadDriveSnapshot(snapshotId));
     const { imageAssetIds, ensureImageAsset } = await import('../data/person-images');
@@ -58,6 +89,7 @@ export function DriveBackup(props: {
     setListed(true);
   }
   createEffect(() => {
+    if (props.busy || running()) return;
     const s = googleSession(),
       selected = backupTarget();
     const key = selected === 'drive' && s.connected ? `${s.accountId}:${s.installation}` : '';
@@ -66,7 +98,7 @@ export function DriveBackup(props: {
       setHistories([]);
       setListed(false);
       if (key)
-        void props.act(async () => {
+        void act('histories', async () => {
           setLabel((await installation()).label);
           await list();
         });
@@ -95,7 +127,7 @@ export function DriveBackup(props: {
         </p>
       </Show>
       <div class="actions">
-        <button disabled={props.busy} onClick={() => void props.act(connectGoogle)}>
+        <button disabled={props.busy} onClick={() => void act('connection', connectGoogle)}>
           {backupTarget() === 'drive' && googleSession().connected
             ? 'Change Google account'
             : 'Connect Google Drive'}
@@ -104,7 +136,7 @@ export function DriveBackup(props: {
           <button
             disabled={props.busy}
             onClick={() =>
-              void props.act(async () => {
+              void act('connection', async () => {
                 await refreshAuth();
                 if (cloudSignedIn()) await list();
               })
@@ -112,11 +144,12 @@ export function DriveBackup(props: {
           >
             Refresh Google connection
           </button>
-          <button disabled={props.busy} onClick={() => void props.act(disconnectGoogle)}>
+          <button disabled={props.busy} onClick={() => void act('connection', disconnectGoogle)}>
             Disconnect this installation
           </button>
         </Show>
       </div>
+      <Feedback owner="connection" pending="Updating Google connection…" />
       <Show when={backupTarget() === 'drive' && needsCode()}>
         <p>
           Google opened in a different browser window. Enter the connection code shown on its return
@@ -135,7 +168,7 @@ export function DriveBackup(props: {
         <button
           disabled={props.busy || !code().trim()}
           onClick={() =>
-            void props.act(async () => {
+            void act('code', async () => {
               await completeGoogle(code());
               setCode('');
             })
@@ -143,6 +176,7 @@ export function DriveBackup(props: {
         >
           Finish Google connection
         </button>
+        <Feedback owner="code" pending="Finishing Google connection…" />
       </Show>
       <Show when={backupTarget() === 'drive' && cloudSignedIn()}>
         <label>
@@ -152,7 +186,7 @@ export function DriveBackup(props: {
         <button
           disabled={props.busy || !label().trim()}
           onClick={() =>
-            void props.act(async () => {
+            void act('name', async () => {
               await renameDrive(label());
               await list();
             })
@@ -160,6 +194,7 @@ export function DriveBackup(props: {
         >
           Save installation name
         </button>
+        <Feedback owner="name" pending="Saving installation name…" />
         <Show when={!props.state?.authoritative}>
           <p class="notice">
             Choose an existing backup below to restore, or start a separate history with this local
@@ -168,7 +203,7 @@ export function DriveBackup(props: {
           <button
             disabled={props.busy || !listed()}
             onClick={() =>
-              void props.act(async () => {
+              void act('backup', async () => {
                 if (
                   confirm(
                     `Back up this local notebook to ${googleSession().email}? Other installations keep their separate histories.`,
@@ -188,7 +223,7 @@ export function DriveBackup(props: {
           <button
             disabled={props.busy || !props.state?.authoritative}
             onClick={() =>
-              void props.act(async () => {
+              void act('backup', async () => {
                 await retryBackup();
                 await list();
               })
@@ -196,10 +231,12 @@ export function DriveBackup(props: {
           >
             Back up now
           </button>
-          <button disabled={props.busy} onClick={() => void props.act(list)}>
+          <button disabled={props.busy} onClick={() => void act('histories', list)}>
             Refresh backup histories
           </button>
         </div>
+        <Feedback owner="backup" pending="Backing up this notebook…" />
+        <Feedback owner="histories" pending="Loading backup histories…" />
         <p class="fine">
           Keeps the latest ten backups plus one per day for 30 days in each history. Older
           installation histories stay until you delete them. Image assets remain in each history for
@@ -226,7 +263,7 @@ export function DriveBackup(props: {
                   class="quiet danger"
                   disabled={props.busy}
                   onClick={() =>
-                    void props.act(async () => {
+                    void act(`history:${h.id}`, async () => {
                       if (
                         confirm(
                           `Permanently delete all backups in “${h.label}” (${h.id.slice(0, 8)})? This cannot be undone. Local notebooks will not be deleted.`,
@@ -240,6 +277,7 @@ export function DriveBackup(props: {
                 >
                   Delete this backup history
                 </button>
+                <Feedback owner={`history:${h.id}`} pending="Deleting backup history…" />
               </Show>
               <For each={h.snapshots}>
                 {(s) => (
@@ -253,16 +291,19 @@ export function DriveBackup(props: {
                     </span>
                     <button
                       disabled={props.busy}
-                      onClick={() => void props.act(async () => restore(s.id, h.id))}
+                      onClick={() => void act(`snapshot:${s.id}`, async () => restore(s.id, h.id))}
                     >
                       Restore
                     </button>
                     <button
                       disabled={props.busy}
-                      onClick={() => void props.act(async () => exportSnapshot(s.id, h.id))}
+                      onClick={() =>
+                        void act(`snapshot:${s.id}`, async () => exportSnapshot(s.id, h.id))
+                      }
                     >
                       Download
                     </button>
+                    <Feedback owner={`snapshot:${s.id}`} pending="Preparing this backup…" />
                   </div>
                 )}
               </For>

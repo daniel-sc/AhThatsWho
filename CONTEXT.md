@@ -13,6 +13,10 @@ A named setting in which people are known, such as a course or club. A household
 **Capture**:
 A recorded or written source note about one or more households, potentially including multiple members of each household.
 
+**Source excerpt**:
+Text associated with a household draft that represents its relevant captured information.
+_Avoid_: Draft evidence
+
 **Merge draft**:
 A proposed update to an existing household that combines captured information with existing household information.
 

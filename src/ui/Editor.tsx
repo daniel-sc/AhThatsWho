@@ -1,4 +1,5 @@
-import { createSignal, createUniqueId, For, Show, onMount } from 'solid-js';
+import { ActionFeedback } from './ActionFeedback';
+import { createSignal, createUniqueId, For, Show, onMount, onCleanup } from 'solid-js';
 import { db, getMeta, setMeta, saveContext } from '../data/db';
 import { validDate } from '../domain/integrity';
 import {
@@ -28,6 +29,12 @@ export function Editor(props: {
   const [ready, setReady] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [draftStatus, setDraftStatus] = createSignal('');
+  const [actionError, setActionError] = createSignal('');
+  const [contextError, setContextError] = createSignal('');
+  let active = true;
+  onCleanup(() => {
+    active = false;
+  });
   let writes = Promise.resolve();
   // Saving can unmount this editor and clear parent state before draft cleanup.
   const draftKey = props.draftKey;
@@ -48,6 +55,7 @@ export function Editor(props: {
     const next = structuredClone(h());
     fn(next);
     setH(next);
+    setActionError('');
     setDraftStatus('Saving draft…');
     writes = writes
       .then(async () => {
@@ -56,7 +64,7 @@ export function Editor(props: {
       })
       .catch((e) => {
         setDraftStatus('Draft could not be saved');
-        props.error(e);
+        setActionError(e instanceof Error ? e.message : 'Draft could not be saved.');
       });
   }
   function person(id: string, fn: (p: Person) => void) {
@@ -67,21 +75,33 @@ export function Editor(props: {
   }
   async function save() {
     if (busy()) return;
+    setActionError('');
     setBusy(true);
     try {
       await writes;
       await props.save(h(), baseVersion);
       await db.meta.delete(draftKey);
     } catch (e) {
-      props.error(e);
+      if (active)
+        setActionError(e instanceof Error ? e.message : 'Changes could not be saved. Try again.');
+      else props.error(e);
     } finally {
       setBusy(false);
     }
   }
   async function cancel() {
-    await writes;
-    await db.meta.delete(draftKey);
-    props.cancel();
+    if (busy()) return;
+    setBusy(true);
+    setActionError('');
+    try {
+      await writes;
+      await db.meta.delete(draftKey);
+      props.cancel();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Draft could not be discarded. Try again.');
+    } finally {
+      setBusy(false);
+    }
   }
   function CertaintyControl(p: {
     label: string;
@@ -282,9 +302,7 @@ export function Editor(props: {
           <h1>{props.title || 'Edit household'}</h1>
         </div>
       </div>
-      <p class="muted" role="status">
-        {draftStatus() || 'Changes apply only when you save.'}
-      </p>
+      <p class="muted">Changes apply only when you save.</p>
       <Show when={props.sourceText}>
         <h2>Source note</h2>
         <p class="source preserve">{props.sourceText}</p>
@@ -467,6 +485,7 @@ export function Editor(props: {
               type="button"
               class="quiet"
               onClick={async () => {
+                setContextError('');
                 const name = prompt('New context name');
                 if (name?.trim())
                   try {
@@ -474,12 +493,15 @@ export function Editor(props: {
                     await saveContext(c);
                     update((h) => h.contextIds.push(c.id));
                   } catch (e) {
-                    props.error(e);
+                    setContextError(
+                      e instanceof Error ? e.message : 'Context could not be created.',
+                    );
                   }
               }}
             >
               + Create context
             </button>
+            <ActionFeedback error={contextError()} />
           </fieldset>
           <Show when={props.changes?.(h()).length}>
             <div class="notice">
@@ -495,6 +517,12 @@ export function Editor(props: {
             </div>
           </Show>
           <div class="actions sticky-actions">
+            <div class="editor-feedback">
+              <ActionFeedback error={actionError()} />
+              <p class="fine" role="status">
+                {draftStatus()}
+              </p>
+            </div>
             <button class="primary" disabled={busy()} type="submit">
               {busy() ? 'Saving…' : props.saveLabel || 'Save'}
             </button>

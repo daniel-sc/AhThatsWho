@@ -1,5 +1,13 @@
-import { createSignal, ErrorBoundary, lazy, Show, Suspense } from 'solid-js';
-import type { Person } from '../../domain/types';
+import {
+  createEffect,
+  createSignal,
+  ErrorBoundary,
+  lazy,
+  onCleanup,
+  Show,
+  Suspense,
+} from 'solid-js';
+import type { HouseholdRecord, Person } from '../../domain/types';
 import { ImageDialog } from '../../ui/ImageDialog';
 import { usePage } from '../page';
 import { Icon } from '../../ui/Icon';
@@ -26,19 +34,41 @@ export default function HomePage() {
   } = usePage();
   const restoreAnchor = homeRestoreAnchor();
   const [imageEdit, setImageEdit] = createSignal<{ householdId: string; person: Person }>();
-  function closeImageEditor() {
+  const [returnFocus, setReturnFocus] = createSignal<{
+    personId: string;
+    savedVersion?: string;
+    previousRows: HouseholdRecord[];
+  }>();
+  function closeImageEditor(savedVersion?: string) {
     const personId = imageEdit()?.person.id;
     setImageEdit(undefined);
-    // Saving replaces list records and their DOM nodes. Restore by identity after rendering.
-    requestAnimationFrame(() => {
-      const target =
-        personId &&
-        document.querySelector<HTMLElement>(`[data-person-image="${CSS.escape(personId)}"]`);
+    if (personId) setReturnFocus({ personId, savedVersion, previousRows: results().rows });
+  }
+  createEffect(() => {
+    const request = returnFocus();
+    if (!request) return;
+    // A save resolves before liveQuery refreshes the list. A fresh result may
+    // already contain a later edit or omit a removed person, so do not wait forever
+    // for the exact saved version.
+    const rows = results().rows;
+    if (
+      request.savedVersion &&
+      rows === request.previousRows &&
+      rows.some((r) => r.household.people.some((p) => p.id === request.personId)) &&
+      !rows.some((r) => r.versionId === request.savedVersion)
+    )
+      return;
+    const frame = requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(
+        `[data-person-image="${CSS.escape(request.personId)}"]`,
+      );
       (target || document.querySelector<HTMLInputElement>('input[type="search"]'))?.focus({
         preventScroll: true,
       });
+      setReturnFocus(undefined);
     });
-  }
+    onCleanup(() => cancelAnimationFrame(frame));
+  });
   return (
     <Show
       when={!welcome()}
@@ -105,7 +135,7 @@ export default function HomePage() {
                 fallback={() => (
                   <ImageDialog
                     title="Image editor unavailable"
-                    close={closeImageEditor}
+                    close={() => closeImageEditor()}
                     dismissOnBackdrop={false}
                   >
                     <p role="alert">
@@ -119,7 +149,7 @@ export default function HomePage() {
                   fallback={
                     <ImageDialog
                       title="Opening image editor…"
-                      close={closeImageEditor}
+                      close={() => closeImageEditor()}
                       dismissOnBackdrop={false}
                     >
                       <p role="status">Loading…</p>

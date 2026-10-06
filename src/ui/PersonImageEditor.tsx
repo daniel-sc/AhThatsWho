@@ -8,7 +8,7 @@ import { PersonImageFields } from './PersonImageFields';
 export default function PersonImageEditor(props: {
   householdId: string;
   person: Person;
-  close: () => void;
+  close: (savedVersion?: string) => void;
 }) {
   const [assetId, setAssetId] = createSignal(props.person.imageAssetId);
   const [busy, setBusy] = createSignal(false);
@@ -18,8 +18,8 @@ export default function PersonImageEditor(props: {
     setBusy(true);
     setIssue('');
     try {
-      await savePersonImage(props.householdId, props.person.id, assetId());
-      props.close();
+      const saved = await savePersonImage(props.householdId, props.person.id, assetId());
+      props.close(saved.versionId);
     } catch (error) {
       setIssue(error instanceof Error ? error.message : 'The image could not be saved. Try again.');
     } finally {
@@ -29,7 +29,7 @@ export default function PersonImageEditor(props: {
   return (
     <ImageDialog
       title={`Image of ${personName(props.person)}`}
-      close={props.close}
+      close={() => props.close()}
       busy={busy()}
       dismissOnBackdrop={false}
     >
@@ -50,7 +50,7 @@ export default function PersonImageEditor(props: {
         <button type="button" class="primary" disabled={busy()} onClick={() => void save()}>
           {busy() ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" disabled={busy()} onClick={props.close}>
+        <button type="button" disabled={busy()} onClick={() => props.close()}>
           Cancel
         </button>
       </div>

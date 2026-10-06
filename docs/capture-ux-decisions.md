@@ -4,6 +4,8 @@ Baseline decisions: 2026-09-30, approved and implemented in the working tree; no
 
 Primary goal: great UX with low complexity. Complexity estimates include implementation and verification.
 
+The [capture feedback spec](capture-feedback-spec.md) supersedes whole-note draft retention and mandatory source-excerpt matching below: whole-note reprocessing discards earlier drafts immediately, while per-card “Draft as new household” retains its original draft until success. Source excerpts are used without checking them against the note.
+
 ## Agreed direction
 
 | Topic           | Decision                                                                                                                                                                                                                | Estimated complexity      |

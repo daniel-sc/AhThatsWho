@@ -22,8 +22,9 @@ Choose **Speak or jot a note** to capture text or audio now and process it later
 
 A note can describe one or several households. AI produces suggestions for your review and never writes directly to the notebook. Compare **Current** and **Proposed**, correct the drafts, then save the complete capture together. If the existing household changes while you review, its proposal can no longer be applied; refresh the suggestions against the current entry.
 
-- **Reprocess as one household** or **Reprocess as multiple households** uses your corrected source text. Failed requests keep the previous drafts.
-- **Draft as new household** uses that card's captured source excerpts when a suggested match is wrong.
+- **Process now** is the main action for a written note; **Save for later** keeps it without processing. Voice notes show transcription and suggestion preparation separately. Check the suggested households before saving.
+- **Reprocess as one household** or **Reprocess as multiple households** uses your corrected source text and discards earlier suggestions and draft edits when it starts. If it fails, your source remains available with **Retry**.
+- **Draft as new household** uses that card's captured source excerpts when a suggested match is wrong. It keeps the original suggestion until replacement succeeds and leaves other cards unchanged. Excerpts are supplied by AI, not verified quotations. If no excerpt is available, edit manually or reprocess the whole note.
 - AI can assign existing contexts. Create a new context yourself before assigning it.
 
 Failed processing keeps the source for retry or manual editing. You can correct a transcript and retry processing without transcribing the recording again.

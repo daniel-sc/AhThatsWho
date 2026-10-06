@@ -66,6 +66,11 @@ jobs:
           if [[ "$DEPLOY_BRANCH" == main || "$DEPLOY_BRANCH" == master ]]; then
             mise exec -- wrangler deploy 2>&1 | tee deployment.log
           else
+            # This is a separate Worker: production secrets are not inherited.
+            if ! mise exec -- wrangler secret list --env preview | jq -e 'any(.[]; .name == "OPENAI_API_KEY")' > /dev/null; then
+              echo '::error::Set OPENAI_API_KEY as a Secret on ahthatswho-drive-preview, then rerun deployment.'
+              exit 1
+            fi
             # Hash the full branch name: stable, valid DNS alias, no slug collisions.
             alias="branch-$(printf '%s' "$DEPLOY_BRANCH" | sha256sum | cut -c1-16)"
             mise exec -- wrangler versions upload --env preview --preview-alias "$alias" 2>&1 | tee deployment.log
@@ -76,3 +81,11 @@ jobs:
             cat deployment.log
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$DEPLOY_BRANCH" != main && "$DEPLOY_BRANCH" != master ]]; then
+            # Check the uploaded version, not the deployed preview Worker or an older alias.
+            preview_url="$(sed -nE 's/^Version Preview URL: (https:\/\/[^[:space:]]+).*$/\1/p' deployment.log | tail -1)"
+            if [[ -z "$preview_url" ]] || ! curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 2 --max-time 20 "$preview_url/api/ai/check" | jq -e '.available == true' > /dev/null; then
+              echo '::error::Preview sponsored AI check failed. Verify the preview Worker secret and access to both drafting and transcription models.'
+              exit 1
+            fi
+          fi

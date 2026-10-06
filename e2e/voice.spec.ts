@@ -7,6 +7,14 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
 }) => {
   let transcriptions = 0;
   let proposals = 0;
+  let releaseTranscript!: () => void;
+  let releaseDraft!: () => void;
+  const transcriptReady = new Promise<void>((resolve) => {
+    releaseTranscript = resolve;
+  });
+  const draftReady = new Promise<void>((resolve) => {
+    releaseDraft = resolve;
+  });
   await page.route('**/api/ai/transcribe', async (route) => {
     transcriptions++;
     expect(route.request().headers()['content-type']).toContain('multipart/form-data');
@@ -15,6 +23,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
     expect(body).toContain('name="languages[]"\r\n\r\nen');
     expect(body).toMatch(/capture\.(webm|m4a)/);
     expect(body).toMatch(/audio\/(webm|mp4)/);
+    await transcriptReady;
     await route.fulfill({ json: { text: 'Met Beatrice at the synthetic pottery studio.' } });
   });
   await page.route('**/api/ai/generate', async (route) => {
@@ -24,6 +33,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
     expect(input.source).toContain('Also likes jazz.');
     expect(input.source).toContain('Met Beatrice');
     if (proposals === 1) {
+      await draftReady;
       await route.fulfill({ status: 429, json: { error: 'synthetic rate limit' } });
       return;
     }
@@ -75,7 +85,20 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   expect(transcriptions).toBe(0);
   expect(proposals).toBe(0);
   await page.getByRole('button', { name: /Stop & process/ }).click();
-  await expect(page.getByRole('alert').first()).toContainText('limit');
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Transcribing your recording…' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Process with AI' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Correct source text' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Keep for later', exact: true })).toBeEnabled();
+  releaseTranscript();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Preparing household suggestions…' }),
+  ).toBeVisible();
+  await expect(page.locator('.source')).toContainText('Met Beatrice');
+  releaseDraft();
+  await expect(page.getByRole('alert')).toHaveCount(1);
+  await expect(page.getByRole('alert')).toContainText('limit');
   expect(transcriptions).toBe(1);
   expect(proposals).toBe(1);
   await page.reload();
@@ -87,7 +110,7 @@ test('Chromium recorder persists before upload, reuses transcript, and cleans au
   await page.getByRole('button', { name: /Met Beatrice/ }).click();
   await page.getByRole('button', { name: 'Play saved recording' }).click();
   await expect(page.locator('audio')).toHaveAttribute('src', /^blob:/);
-  await page.getByRole('button', { name: 'Process with OpenAI' }).click();
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: '1 household to review', exact: true }),
   ).toBeVisible();

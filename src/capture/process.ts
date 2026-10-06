@@ -20,8 +20,17 @@ export async function processCapture(
       'Reprocess the current source first',
     );
     c.attempt = attempt;
+    c.retry = { mode, draftIndex };
     delete c.error;
+    if (draftIndex === undefined) {
+      delete c.proposal;
+      delete c.proposals;
+      delete c.sourceChanged;
+      c.stage = c.transcript ? 'transcript-ready' : 'source-ready';
+    }
+    c.updatedAt = now();
     await db.inbox.put(c);
+    await dirty();
   });
   try {
     let c = (await db.inbox.get(id))!;
@@ -61,13 +70,13 @@ export async function processCapture(
       const drafts = captureDrafts(c);
       const quotes = drafts[draftIndex].sourceQuotes;
       assert(
-        quotes?.length || drafts.length === 1,
-        'Correct the source and reprocess to isolate this household first.',
+        quotes && quotes.some((quote) => quote.trim()),
+        'This suggestion has no captured text. Edit it manually or reprocess the whole note.',
       );
       c = {
         ...c,
         kind: 'text',
-        text: quotes?.join('\n') || [c.text, c.transcript].filter(Boolean).join('\n'),
+        text: quotes.join('\n'),
         transcript: undefined,
       };
     }
@@ -82,6 +91,7 @@ export async function processCapture(
       await db.inbox.put(c);
       await dirty();
     });
-    throw error;
+    // Expected request failures live on the capture, where review offers Retry.
+    // Only failures to start or persist processing escape to the global error UI.
   }
 }

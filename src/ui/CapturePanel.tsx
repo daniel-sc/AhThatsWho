@@ -126,8 +126,7 @@ export function CapturePanel(props: {
     <section class="capture-panel">
       <h1>A name. A small detail.</h1>
       <p class="muted">
-        One note can cover several households. Say who belongs together; review each household
-        before saving.
+        One note can cover several households. Review the suggestions before saving.
       </p>
       <Show when={getAIMode() === 'personal' && !getKey()}>
         <div class="notice">
@@ -158,11 +157,7 @@ export function CapturePanel(props: {
         {recording() ? `Stop & process · ${seconds()}s` : 'Record a voice note'}
       </button>
       <p class="fine capture-help">
-        Stopping sends audio to OpenAI for transcription and a suggestion. Nothing changes until you
-        approve it.{' '}
-        {getAIMode() === 'sponsored'
-          ? 'Sponsored processing passes through our server.'
-          : 'Your personal API key pays for processing.'}
+        Stop to transcribe and prepare household suggestions. Review before saving.
       </p>
       <Show when={saved()}>
         <p role="status">
@@ -182,31 +177,40 @@ export function CapturePanel(props: {
         disabled={!ready()}
         onInput={(e) => checkpoint(e.currentTarget.value)}
         maxLength={20000}
-        rows={4}
+        rows={3}
       />
       <p class="fine" role="status">
         {status()}
       </p>
       <div class="actions">
         <button
+          disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
           class="primary"
+          onClick={() => void persist(true)}
+        >
+          Process now
+        </button>
+        <button
           disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
           onClick={() => void persist(false)}
         >
           Save for later
         </button>
-        <button
-          disabled={busy() || recording() || !ready() || (!text().trim() && !saved())}
-          onClick={() => void persist(true)}
-        >
-          Process now
-        </button>
       </div>
       <p class="fine capture-help">
-        Save for later saves without processing. Process now sends your note and relevant notebook
-        details to OpenAI for review. Audio stays local until applied or discarded and is not
+        Process now asks AI for household suggestions you can review before saving. Save for later
+        keeps your note without processing. Audio stays local until applied or discarded and is not
         included in backups.
       </p>
+      <details class="review-details">
+        <summary>What is sent to AI?</summary>
+        <p class="fine">
+          Processing sends your recording or text and relevant notebook details to OpenAI.{' '}
+          {getAIMode() === 'sponsored'
+            ? 'Sponsored requests pass through our server.'
+            : 'Personal-key requests go directly to OpenAI and charge your account.'}
+        </p>
+      </details>
       <button
         class="quiet"
         disabled={recording() || busy()}

@@ -78,16 +78,20 @@ test('mixed household review keeps edits as drafts and saves the capture togethe
   await expect(page.getByText('Red bicycle', { exact: true })).toBeVisible();
 });
 
-test('per-household new alternative isolates the captured source and preserves the other draft', async ({
+test('per-household retry uses unvalidated excerpts and preserves both drafts until success', async ({
   page,
 }) => {
+  const excerpt = 'Elena rides a red bicycle.';
+  let newCalls = 0;
   await page.route('**/api/ai/generate', async (route) => {
     const input = route.request().postDataJSON();
     if (input.mode === 'new') {
-      expect(input.source).toBe(update.sourceQuotes[0]);
+      expect(input.source).toBe(excerpt);
       expect(input.candidates).toEqual([]);
       expect(input.nameIndex).toEqual([]);
       expect(input.hints.householdId).toBeUndefined();
+      if (++newCalls === 1)
+        return route.fulfill({ status: 500, json: { error: 'Synthetic failure' } });
       return route.fulfill({
         json: response([
           {
@@ -98,19 +102,34 @@ test('per-household new alternative isolates the captured source and preserves t
               contextIds: [],
               cue: 'Red bicycle',
             },
-            sourceQuotes: update.sourceQuotes,
+            sourceQuotes: [excerpt],
           },
         ]),
       });
     }
-    return route.fulfill({ json: response([update, create]) });
+    return route.fulfill({ json: response([{ ...update, sourceQuotes: [excerpt] }, create]) });
   });
   await seed(page);
   await page
     .getByRole('article')
     .nth(0)
+    .getByRole('button', { name: 'Edit proposal manually' })
+    .click();
+  await page.getByLabel('Memory cue', { exact: true }).fill('My corrected cue');
+  await page.getByRole('button', { name: 'Keep draft changes' }).click();
+  await page
+    .getByRole('article')
+    .nth(0)
     .getByRole('button', { name: 'Draft as new household' })
     .click();
+  await expect(page.getByRole('alert')).toHaveCount(1);
+  await expect(page.getByRole('alert')).toContainText('The original suggestion is still shown');
+  await expect(page.getByRole('article')).toHaveCount(2);
+  await expect(
+    page.getByRole('article').nth(0).getByText('My corrected cue', { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(
     page.getByRole('article').nth(0).getByText('New household', { exact: true }),
   ).toBeVisible();
@@ -124,9 +143,10 @@ test('per-household new alternative isolates the captured source and preserves t
   await expect(page.getByRole('heading', { name: 'Saved 2 households' })).toBeVisible();
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.locator('[data-household]')).toHaveCount(3);
+  expect(newCalls).toBe(2);
 });
 
-test('grouping retries preserve edited drafts on failure and use the corrected source on retry', async ({
+test('whole-note retries discard edited drafts and use the corrected source and grouping', async ({
   page,
 }) => {
   let multiCalls = 0;
@@ -152,19 +172,18 @@ test('grouping retries preserve edited drafts on failure and use the corrected s
   await page.getByRole('button', { name: 'Keep draft changes' }).click();
   await page.getByText('Reprocess or change household grouping', { exact: true }).click();
   await expect(
-    page.getByText('Reprocessing replaces your edited drafts', { exact: false }),
+    page.getByText('Reprocessing discards these suggestions', { exact: false }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Reprocess as multiple households', exact: true }).click();
-  await expect(page.getByRole('alert').first()).toBeVisible();
-  await expect(
-    page.getByRole('article').nth(1).getByText('Keep on failure', { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(1);
+  await expect(page.getByText('Keep on failure', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '2 households to review' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save 2 households' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Correct source text' }).click();
   await page
     .getByLabel('Corrected source text')
     .fill('Nora and Peter from pottery. Elena Example 1 has a red bicycle.');
   await page.getByRole('button', { name: 'Save source text' }).click();
-  await expect(page.getByRole('button', { name: 'Save 2 households' })).toBeDisabled();
   await page.getByRole('button', { name: 'Reprocess as multiple households', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save 2 households' })).toBeEnabled();
   await expect(page.getByText('Keep on failure', { exact: true })).toHaveCount(0);
@@ -252,6 +271,6 @@ test('saved voice captures with an outdated stage appear only in Completed', asy
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Saved 1 household' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Discard capture' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Process with OpenAI' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Process with AI' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open household' })).toBeVisible();
 });

@@ -65,7 +65,7 @@ People stay embedded in households. The notebook has no general app login or tel
 
 The current global format version is 2. Version 1 backups remain importable; unsupported versions are refused. Existing version 1 captures remain readable through compatibility helpers for draft and receipt fields. Future format changes must account for current data, revisions, and imports together. Saves preserve existing IDs and displaced provenance; semantic no-ops do not create history. Operational view state stays separate from portable content.
 
-Exports include contexts, households including trash, history, inbox text/transcripts/proposals/receipts, and preferences for resume and recognition languages. Keys, provider tokens, audio, transient attempts/errors, unsaved editor drafts, and search state are excluded. Imports use the same allowlist. Version 2 retains all household review drafts and receipts.
+Exports include contexts, households including trash, history, inbox text/transcripts/proposals/receipts, and preferences for resume and recognition languages. Keys, provider tokens, audio, transient attempts/errors/retry choices, unsaved editor drafts, and search state are excluded. Imports use the same allowlist. Version 2 retains all household review drafts and receipts.
 
 Safety snapshots survive replacement. Recovery switches to a new dataset generation so an old upload completion cannot acknowledge new data. A receipt makes duplicate Apply harmless, and a changed target invalidates a proposal. Saved audio is chunked locally while recording and removed after Apply/Discard. Audio not yet emitted by the browser cannot survive a force-kill.
 

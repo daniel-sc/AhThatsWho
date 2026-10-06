@@ -145,7 +145,9 @@ it('reprocesses just the selected source excerpts as new and keeps all drafts on
   const generate = vi
     .spyOn(api, 'generate')
     .mockRejectedValueOnce(new Error('Network unavailable'));
-  await expect(processCapture(c.id, 'new', 1)).rejects.toThrow('Network unavailable');
+  await processCapture(c.id, 'new', 1);
+  expect((await db.inbox.get(c.id))?.error).toBe('Network unavailable');
+  expect((await db.inbox.get(c.id))?.retry).toEqual({ mode: 'new', draftIndex: 1 });
   expect(captureDrafts((await db.inbox.get(c.id))!)).toEqual(c.proposals);
   const args = generate.mock.calls[0];
   expect(args[0].text).toBe('Elena has a red bicycle.');
@@ -158,20 +160,40 @@ it('reprocesses just the selected source excerpts as new and keeps all drafts on
   expect(drafts[1].sourceQuotes).toEqual(c.proposals[1].sourceQuotes);
 });
 
-it('retains previous drafts after source correction but blocks saving until refreshed', async () => {
+it('discards drafts when whole-note reprocessing starts and preserves corrected source on failure', async () => {
   await db.open();
   const c = capture();
   c.proposals = [fresh()];
   await saveCapture(c);
   await updateTranscript(c.id, 'Corrected note');
-  const generate = vi.spyOn(api, 'generate').mockRejectedValueOnce(new Error('Offline'));
-  await expect(processCapture(c.id, 'multiple')).rejects.toThrow('Offline');
-  expect(generate.mock.calls[0][0].text).toBe('Corrected note');
-  expect(captureDrafts((await db.inbox.get(c.id))!)).toEqual(c.proposals);
   await expect(applyCapture(c.id)).rejects.toThrow('current source');
+  let fail!: (error: Error) => void;
+  const generate = vi.spyOn(api, 'generate').mockImplementationOnce(async () => {
+    const pending = (await db.inbox.get(c.id))!;
+    expect(captureDrafts(pending)).toEqual([]);
+    expect(pending.proposal).toBeUndefined();
+    expect(pending.stage).toBe('source-ready');
+    expect(pending.attempt).toBeTruthy();
+    await expect(applyCapture(c.id)).rejects.toThrow('current source');
+    return new Promise((_resolve, reject) => {
+      fail = reject;
+    });
+  });
+  const processing = processCapture(c.id, 'multiple');
+  await vi.waitFor(() => expect(fail).toBeDefined());
+  fail(new Error('Offline'));
+  await processing;
+  expect(generate.mock.calls[0][0].text).toBe('Corrected note');
+  const failed = (await db.inbox.get(c.id))!;
+  expect(captureDrafts(failed)).toEqual([]);
+  expect(failed.text).toBe('Corrected note');
+  expect(failed.error).toBe('Offline');
+  expect(failed.attempt).toBeUndefined();
+  expect(failed.retry).toEqual({ mode: 'multiple', draftIndex: undefined });
+  await expect(applyCapture(c.id)).rejects.toThrow('not ready');
   const restored = database();
   await replaceData(importPreview(JSON.stringify(await snapshot())), restored);
-  await expect(applyCapture(c.id, true, restored)).rejects.toThrow('current source');
+  await expect(applyCapture(c.id, true, restored)).rejects.toThrow('not ready');
 });
 
 it('opens a version 1 local database and imports singular captures without losing them', async () => {

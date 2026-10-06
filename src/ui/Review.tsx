@@ -43,7 +43,7 @@ export function Review(props: {
   }>();
   const [sourceText, setSourceText] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
-  const [status, setStatus] = createSignal('');
+  const [generating, setGenerating] = createSignal(false);
   const [audio, setAudio] = createSignal('');
   let audioUrl = '';
   const c = () => props.capture;
@@ -51,6 +51,13 @@ export function Review(props: {
   const receipts = () => captureReceipts(c());
   const completed = () => captureCompleted(c());
   const processing = () => busy() || !!c().attempt;
+  const drafting = () => generating() || !!c().attempt;
+  const progressLabel = () =>
+    c().kind === 'audio' && !c().transcript && !c().audioMissing
+      ? 'Transcribing your recording…'
+      : c().retry?.draftIndex !== undefined
+        ? 'Preparing a new household suggestion…'
+        : 'Preparing household suggestions…';
   const source = () => [c().text, c().transcript].filter(Boolean).join('\n');
   const current = (p: Proposal) => props.rows.find((r) => r.household.id === p.targetId);
   const stale = (p: Proposal) =>
@@ -82,17 +89,16 @@ export function Review(props: {
       props.error(e);
     } finally {
       setBusy(false);
-      setStatus('');
     }
   }
   async function process(mode: GenerationMode = 'auto', index?: number) {
-    setStatus(
-      mode === 'new'
-        ? 'Creating a new household draft from your note…'
-        : 'Reading your note and preparing households…',
-    );
-    const { processCapture } = await import('../capture/process');
-    await processCapture(c().id, mode, index);
+    setGenerating(true);
+    try {
+      const { processCapture } = await import('../capture/process');
+      await processCapture(c().id, mode, index);
+    } finally {
+      setGenerating(false);
+    }
   }
   function choose(index: number, r?: HouseholdRecord) {
     setEditing({
@@ -202,72 +208,83 @@ export function Review(props: {
             kept.
           </p>
         </Show>
-        <div class="actions">
-          <Show when={p()?.household && p()?.action !== 'multiple'}>
-            <button
-              disabled={disabled() || !!stale(p()!) || !!p()?.contextSuggestions.length}
-              onClick={() =>
-                setEditing({ index: card.index, draft: structuredClone(p()!), expected: p() })
-              }
-            >
-              Edit proposal manually
-            </button>
-          </Show>
-          <Show when={p() && p()?.action !== 'create' && p()?.action !== 'multiple'}>
-            <button
-              disabled={disabled()}
-              onClick={() => void act(() => process('new', card.index))}
-            >
-              Draft as new household
-            </button>
-          </Show>
-          <button
-            class="quiet"
-            disabled={disabled()}
-            onClick={() => setShowTargets(!showTargets())}
-          >
-            {showTargets()
-              ? 'Cancel household search'
-              : p()?.household
-                ? 'Choose a different household'
-                : 'Update an existing household'}
-          </button>
-          <Show when={!p() || showTargets()}>
-            <button class="quiet" disabled={disabled()} onClick={() => choose(card.index)}>
-              Create new manually
-            </button>
-          </Show>
-        </div>
-        <Show when={showTargets() || p()?.action === 'ambiguous'}>
-          <h3>Choose a household</h3>
-          <label>
-            Search households
-            <input value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
-          </label>
-          <p class="fine">Choose a household, then enter the changes from your source note.</p>
-          <For
-            each={search(props.rows, props.contexts, query()).rows.filter(
-              (r) =>
-                showTargets() ||
-                !p()?.candidateIds.length ||
-                p()?.candidateIds.includes(r.household.id),
-            )}
-            fallback={<p>No matching households. Try another name or draft as new.</p>}
-          >
-            {(r) => (
+        <Show when={!processing()}>
+          <div class="actions">
+            <Show when={p()?.household && p()?.action !== 'multiple'}>
               <button
-                class="household-row"
-                disabled={disabled()}
-                onClick={() => choose(card.index, r)}
+                disabled={disabled() || !!stale(p()!) || !!p()?.contextSuggestions.length}
+                onClick={() =>
+                  setEditing({ index: card.index, draft: structuredClone(p()!), expected: p() })
+                }
               >
-                <HouseholdView household={r.household} contexts={props.contexts} compact />
+                Edit proposal manually
               </button>
-            )}
-          </For>
-          <Show when={!showTargets()}>
-            <button class="quiet" disabled={disabled()} onClick={() => setShowTargets(true)}>
-              Search all households
+            </Show>
+            <Show when={p() && p()?.action !== 'create' && p()?.action !== 'multiple'}>
+              <button
+                disabled={disabled() || !p()?.sourceQuotes?.some((quote) => quote.trim())}
+                onClick={() => void act(() => process('new', card.index))}
+              >
+                Draft as new household
+              </button>
+            </Show>
+            <button
+              class="quiet"
+              disabled={disabled()}
+              onClick={() => setShowTargets(!showTargets())}
+            >
+              {showTargets()
+                ? 'Cancel household search'
+                : p()?.household
+                  ? 'Choose a different household'
+                  : 'Update an existing household'}
             </button>
+            <Show when={!p() || showTargets()}>
+              <button class="quiet" disabled={disabled()} onClick={() => choose(card.index)}>
+                Create new manually
+              </button>
+            </Show>
+          </div>
+          <Show
+            when={
+              p() && p()?.action !== 'create' && !p()?.sourceQuotes?.some((quote) => quote.trim())
+            }
+          >
+            <p class="fine">
+              No captured text for this suggestion. Edit it manually or reprocess the whole note.
+            </p>
+          </Show>
+          <Show when={showTargets() || p()?.action === 'ambiguous'}>
+            <h3>Choose a household</h3>
+            <label>
+              Search households
+              <input value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
+            </label>
+            <p class="fine">Choose a household, then enter the changes from your source note.</p>
+            <For
+              each={search(props.rows, props.contexts, query()).rows.filter(
+                (r) =>
+                  showTargets() ||
+                  !p()?.candidateIds.length ||
+                  p()?.candidateIds.includes(r.household.id),
+              )}
+              fallback={<p>No matching households. Try another name or draft as new.</p>}
+            >
+              {(r) => (
+                <button
+                  class="household-row"
+                  disabled={disabled()}
+                  onClick={() => choose(card.index, r)}
+                >
+                  <HouseholdView household={r.household} contexts={props.contexts} compact />
+                </button>
+              )}
+            </For>
+            <Show when={!showTargets()}>
+              <button class="quiet" disabled={disabled()} onClick={() => setShowTargets(true)}>
+                Search all households
+              </button>
+            </Show>
           </Show>
         </Show>
       </article>
@@ -318,10 +335,41 @@ export function Review(props: {
               }}
             </For>
           </Show>
-          <Show when={c().error && !completed()}>
-            <p class="notice" role="alert">
-              {c().error}
-            </p>
+          <Show when={drafting()}>
+            <div class="capture-progress" role="status" aria-live="polite" aria-atomic="true">
+              <span class="capture-spinner" aria-hidden="true" />
+              <div>
+                <p class="capture-progress-title">{progressLabel()}</p>
+                <p>
+                  Next, check the household suggestions and save. Nothing has been saved to your
+                  notebook yet.
+                </p>
+              </div>
+            </div>
+          </Show>
+          <Show when={c().error && !completed() && !processing()}>
+            <div class="capture-failure">
+              <div role="alert">
+                <p class="capture-progress-title">Suggestions could not be prepared</p>
+                <p>{c().error}</p>
+                <Show when={c().retry?.draftIndex !== undefined}>
+                  <p>The original suggestion is still shown. Other households are unchanged.</p>
+                </Show>
+              </div>
+              <p class="fine">
+                Your note is saved. Retrying can produce different suggestions from the same text.
+              </p>
+              <button
+                class="primary"
+                disabled={sourceText() !== undefined}
+                onClick={() => {
+                  const retry = c().retry;
+                  void act(() => process(retry?.mode || 'auto', retry?.draftIndex));
+                }}
+              >
+                Retry
+              </button>
+            </div>
           </Show>
           <Show when={c().audioMissing && !completed()}>
             <p class="notice">
@@ -333,7 +381,9 @@ export function Review(props: {
             <p class="notice">Recording was interrupted. Check playback before processing.</p>
           </Show>
           <Show when={c().audioId && !c().audioMissing}>
-            <button onClick={() => void act(playback)}>Play saved recording</button>
+            <button disabled={processing()} onClick={() => void act(playback)}>
+              Play saved recording
+            </button>
             <Show when={audio()}>
               <audio controls src={audio()} />
             </Show>
@@ -344,7 +394,7 @@ export function Review(props: {
             fallback={
               <>
                 <p class="source preserve">{source() || 'Audio awaiting transcription'}</p>
-                <Show when={!completed()}>
+                <Show when={!completed() && !processing()}>
                   <button
                     class="quiet"
                     disabled={processing()}
@@ -391,92 +441,108 @@ export function Review(props: {
                 Source corrected. Reprocess to refresh these drafts before saving.
               </p>
             </Show>
-            <Show when={processing()}>
-              <p class="notice" role="status">
-                {status() || 'Preparing household drafts…'} Your previous drafts are kept if
-                processing fails.
-              </p>
-            </Show>
             <Show when={drafts().length}>
               <div class="review-heading">
                 <h2>
                   {drafts().length}{' '}
                   {drafts().length === 1 ? 'household to review' : 'households to review'}
                 </h2>
-                <p class="muted">Check who belongs together and where each detail goes.</p>
+                <p class="muted">
+                  Check the names, who belongs together, and where each detail goes. Then save to
+                  your notebook.
+                </p>
               </div>
               <For each={drafts()}>
                 {(draft, index) => <DraftCard draft={draft} index={index()} />}
               </For>
-              <div class="review-save">
-                <button
-                  class="primary"
-                  disabled={!ready()}
-                  onClick={() =>
-                    void act(async () => {
-                      const saved = await applyCapture(c().id, true);
-                      if (saved.length === 1) props.applied(saved[0].householdId);
-                    })
-                  }
-                >
-                  Save {drafts().length} {drafts().length === 1 ? 'household' : 'households'}
-                </button>
-                <p class="fine">
-                  {ready()
-                    ? 'All household changes are saved together.'
-                    : 'Resolve each draft and finish processing before saving.'}
-                </p>
-              </div>
-            </Show>
-            <details
-              class="review-details reprocess-options"
-              open={!drafts().length || !!c().sourceChanged}
-            >
-              <summary>
-                {drafts().length ? 'Reprocess or change household grouping' : 'Process this note'}
-              </summary>
-              <Show when={drafts().some((p) => p.edited)}>
-                <p class="notice">
-                  Reprocessing replaces your edited drafts after it succeeds. Corrections to the
-                  source text are kept.
-                </p>
+              <Show when={!processing()}>
+                <div class="review-save">
+                  <button
+                    class="primary"
+                    disabled={!ready()}
+                    onClick={() =>
+                      void act(async () => {
+                        const saved = await applyCapture(c().id, true);
+                        if (saved.length === 1) props.applied(saved[0].householdId);
+                      })
+                    }
+                  >
+                    Save {drafts().length} {drafts().length === 1 ? 'household' : 'households'}
+                  </button>
+                  <p class="fine">
+                    {ready()
+                      ? 'All household changes are saved together.'
+                      : c().sourceChanged
+                        ? 'Process the corrected source before saving.'
+                        : 'Resolve each household suggestion before saving.'}
+                  </p>
+                </div>
               </Show>
-              <div class="actions">
-                <button disabled={processing()} onClick={() => void act(() => process())}>
-                  {drafts().length ? 'Reprocess' : 'Process with OpenAI'}
-                </button>
-                <button disabled={processing()} onClick={() => void act(() => process('single'))}>
-                  Reprocess as one household
-                </button>
-                <button disabled={processing()} onClick={() => void act(() => process('multiple'))}>
-                  Reprocess as multiple households
-                </button>
-              </div>
-            </details>
+            </Show>
+            <Show when={!processing()}>
+              <details
+                class="review-details reprocess-options"
+                open={(!drafts().length && !c().error) || !!c().sourceChanged}
+              >
+                <summary>
+                  {drafts().length ? 'Reprocess or change household grouping' : 'Process this note'}
+                </summary>
+                <Show when={drafts().some((p) => p.edited)}>
+                  <p class="notice">
+                    Reprocessing discards these suggestions, including your draft edits, when it
+                    starts. Your source text is kept.
+                  </p>
+                </Show>
+                <div class="actions">
+                  <button
+                    class={drafts().length || c().error ? undefined : 'primary'}
+                    onClick={() => void act(() => process())}
+                  >
+                    {drafts().length ? 'Reprocess' : 'Process with AI'}
+                  </button>
+                  <button disabled={processing()} onClick={() => void act(() => process('single'))}>
+                    Reprocess as one household
+                  </button>
+                  <button
+                    disabled={processing()}
+                    onClick={() => void act(() => process('multiple'))}
+                  >
+                    Reprocess as multiple households
+                  </button>
+                </div>
+              </details>
+            </Show>
             <Show when={!drafts().length && !processing()}>
-              <DraftCard index={0} />
+              <Show when={c().error} fallback={<DraftCard index={0} />}>
+                <details class="review-details">
+                  <summary>Enter a household manually</summary>
+                  <DraftCard index={0} />
+                </details>
+              </Show>
             </Show>
             <div class="actions review-footer">
               <button class="quiet" onClick={props.back}>
                 Keep for later
               </button>
-              <button
-                class="quiet danger"
-                disabled={processing()}
-                onClick={() => {
-                  if (
-                    confirm(
-                      'Discard this unapplied source and its local audio? This cannot be undone.',
+              <Show when={!processing()}>
+                <button
+                  class="quiet danger"
+                  disabled={processing()}
+                  onClick={() => {
+                    if (
+                      confirm(
+                        'Discard this unapplied source and its local audio? This cannot be undone.',
+                      )
                     )
-                  )
-                    void act(async () => {
-                      await discardCapture(c().id);
-                      props.back();
-                    });
-                }}
-              >
-                Discard capture
-              </button>
+                      void act(async () => {
+                        await discardCapture(c().id);
+                        props.back();
+                      });
+                  }}
+                >
+                  Discard capture
+                </button>
+              </Show>
             </div>
           </Show>
         </section>

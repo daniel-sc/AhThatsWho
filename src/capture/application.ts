@@ -116,6 +116,7 @@ export async function applyCapture(id: string, acknowledged = false, d: AhThatsW
       c.updatedAt = now();
       delete c.attempt;
       delete c.error;
+      delete c.retry;
       await d.inbox.put(c);
       await dirty(d);
       return receipts;
@@ -187,6 +188,7 @@ export async function updateTranscript(id: string, text: string, d = db) {
     c.sourceChanged = captureDrafts(c).length > 0;
     delete c.attempt;
     delete c.error;
+    delete c.retry;
     await d.inbox.put(c);
     await dirty(d);
   });
@@ -216,6 +218,7 @@ export async function storeProposals(
       : 'proposed';
     delete c.attempt;
     delete c.error;
+    delete c.retry;
     c.updatedAt = now();
     await d.inbox.put(c);
     await dirty(d);

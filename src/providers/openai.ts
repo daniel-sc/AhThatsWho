@@ -76,7 +76,7 @@ async function request(path: string, body?: BodyInit, json = false) {
               ? 'OpenAI rejected the key. Update it in Settings.'
               : r.status === 429
                 ? 'OpenAI rate or credit limit reached. Retry later.'
-                : `OpenAI request failed (${r.status}). Your source is saved.`,
+                : `AI request failed (${r.status}). Your source is saved.`,
     );
   try {
     return await r.json();
@@ -180,12 +180,12 @@ export async function generate(
   );
   assert(
     response.status === 'completed',
-    'OpenAI response was incomplete. Retry or edit manually.',
+    'The AI response was incomplete. Retry or edit manually.',
   );
   const content = response.output?.flatMap((o: { content?: unknown[] }) => o.content || []) || [];
   assert(
     !content.some((x: { type: string }) => x.type === 'refusal'),
-    'OpenAI declined this request. You can edit manually.',
+    'AI declined this request. You can edit manually.',
   );
   const raw = content
     .filter((x: { type: string }) => x.type === 'output_text')
@@ -201,7 +201,7 @@ export async function generate(
   const drafts = result.proposals as Proposal[];
   assert(
     (mode !== 'single' && mode !== 'new') || drafts.length === 1,
-    'AI did not return one household. Your previous drafts are kept; try again.',
+    'AI did not return one household. Try again.',
   );
   assert(
     mode !== 'multiple' || drafts.length >= 2,
@@ -211,14 +211,10 @@ export async function generate(
   for (const p of drafts) {
     object(p);
     assert(typeof p.reason === 'string', 'Missing draft explanation');
-    assert(
-      Array.isArray(p.sourceQuotes) &&
-        p.sourceQuotes.length > 0 &&
-        p.sourceQuotes.every(
-          (quote) => typeof quote === 'string' && quote.trim() && source.includes(quote),
-        ),
-      'Draft evidence does not match the source. Try processing again.',
-    );
+    // Excerpts support per-card redrafting, not verification of the AI's facts.
+    p.sourceQuotes = Array.isArray(p.sourceQuotes)
+      ? p.sourceQuotes.filter((quote) => typeof quote === 'string')
+      : [];
     p.generatedAt = now();
     p.model = PARSER_MODEL;
     p.contextSuggestions = p.contextSuggestions || [];

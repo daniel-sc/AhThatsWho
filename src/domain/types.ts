@@ -88,6 +88,7 @@ export interface Capture {
   stage: Stage;
   error?: string;
   attempt?: string;
+  retry?: { mode: 'auto' | 'single' | 'multiple' | 'new'; draftIndex?: number };
   proposal?: Proposal;
   receipt?: CaptureReceipt;
   proposals?: Proposal[];

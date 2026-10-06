@@ -1212,6 +1212,47 @@ mark {
 .review-save {
   margin: 24px 0;
 }
+.capture-progress,
+.capture-failure {
+  margin: 24px 0;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--paper);
+  border: 1px solid var(--surface-hover);
+  border-left: 4px solid var(--accent);
+  overflow-wrap: anywhere;
+}
+.capture-progress {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.capture-progress-title {
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+.capture-progress p:last-child,
+.capture-failure [role='alert'] p:last-child {
+  margin-bottom: 0;
+}
+.capture-failure .fine {
+  margin: 16px 0;
+}
+.capture-spinner {
+  flex: 0 0 24px;
+  height: 24px;
+  margin-top: 3px;
+  border: 3px solid var(--surface-hover);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: capture-spin 0.9s linear infinite;
+}
+@keyframes capture-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .review-save > button {
   width: 100%;
 }

@@ -291,7 +291,7 @@ it('reports network and unreadable-response failures with recovery guidance', as
   await expect(generate(capture(), [], [])).rejects.toThrow('unreadable response');
 });
 
-it('validates every draft and rejects duplicate update targets and invented source evidence', async () => {
+it('rejects duplicate update targets but accepts excerpts without matching them to the source', async () => {
   const b = fixtures(1),
     r = b.households[0];
   const p = {
@@ -309,7 +309,10 @@ it('validates every draft and rejects duplicate update targets and invented sour
   fetchMock.mockResolvedValueOnce(
     reply({ ...p, sourceQuotes: ['Invented detail absent from the source'] }),
   );
-  await expect(generate(capture(), b.households, b.contexts)).rejects.toThrow('evidence');
+  const drafts = await generate(capture(), b.households, b.contexts);
+  expect(drafts[0].sourceQuotes).toEqual(['Invented detail absent from the source']);
+  fetchMock.mockResolvedValueOnce(reply({ ...p, sourceQuotes: [] }));
+  expect((await generate(capture(), b.households, b.contexts))[0].sourceQuotes).toEqual([]);
 });
 
 it.each(['auto', 'single', 'multiple', 'new'] as const)(

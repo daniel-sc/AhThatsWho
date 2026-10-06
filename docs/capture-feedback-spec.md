@@ -12,10 +12,10 @@ Agreed design for [#4](https://github.com/daniel-sc/AhThatsWho/issues/4) and [#5
 
 ## Visual flow and interaction
 
-- Use one prominent, consistently placed status area above the source/drafts while processing: an indeterminate activity indicator, a plain stage label (“Transcribing your recording…” or “Preparing household suggestions…”), and brief guidance that review comes next and nothing has been saved to the notebook yet. Keep source text readable as it becomes available.
+- Keep progress, errors and Retry beside their triggering action, following [the app-wide UX guideline](ux-guidelines.md). Per-card drafting owns feedback inside that card; whole-note processing owns feedback beside its controls and brings that area into view when removing old drafts. Use an indeterminate activity indicator, a plain stage label (“Transcribing your recording…” or “Preparing household suggestions…”), and brief guidance that review comes next and nothing has been saved to the notebook yet. Keep source text readable as it becomes available.
 - At manual text entry, place the visually primary “Process now” before the secondary “Save for later.” After successful drafting, emphasize the household review heading and primary Save action, with guidance to check the suggestions before saving.
 - During processing, hide unavailable edit, reprocess, and Save actions instead of presenting competing controls; retain the secondary “Keep for later” action. When idle but not ready to save, state what remains to resolve beside the disabled Save action.
-- Place a single processing error and direct Retry action in the same flow area. Whole-note failure shows source without older cards; per-card failure clearly identifies the retained original suggestion.
+- Place a single processing error and direct Retry action in the affected card or whole-note action area. Whole-note failure shows source without older cards; per-card failure clearly identifies the retained original suggestion.
 - Reuse existing typography, spacing, button, notice, and card styles. Verify hierarchy and next-step clarity at mobile and desktop widths, keyboard access, and screen-reader status/error announcements. Estimated incremental complexity: **Low** within the existing changes.
 
 ## Settled: source excerpts (#5)
@@ -48,3 +48,11 @@ Agreed design for [#4](https://github.com/daniel-sc/AhThatsWho/issues/4) and [#5
 - Full-suite verification exposed an existing image-editor focus race: closing after Save focused the old button before the asynchronous list refresh replaced it. Focus restoration now waits for the saved version or a refreshed list, with search fallback if the person disappears. The existing browser test reproduces this regression and passed three consecutive focused runs after the fix; temporary focus probes were removed. Restarting the local preview server after rebuilding resolved stale-asset offline-cache failures.
 
 Visual examples: [text entry](capture-feedback-visuals/390-text-entry.png), [transcription](capture-feedback-visuals/390-transcription.png), [whole-note failure](capture-feedback-visuals/390-whole-note-failure.png), [desktop review](capture-feedback-visuals/1280-review.png).
+
+### Inline feedback follow-up — 6 October 2026
+
+Feedback now belongs to its action rather than the top of the page. Per-card progress, failure and Retry stay inside the affected card; stable card positions preserve focus across proposal replacement. Whole-note processing brings its replacement feedback into view and then focuses the review heading. Save, source correction, playback and discard have local waiting/error feedback too.
+
+Settings actions, recording and editor saving follow the same [app-wide guideline](ux-guidelines.md), using a small presentation component and screen-owned operation state. No notification queue or new unit-test framework was introduced. Browser coverage checks below-fold per-card progress, local error/Retry after reload, connection feedback/focus, and malformed imports retaining the notebook without a global banner.
+
+Manual Playwright inspection used long synthetic household notes and mocked AI at 320, 390 and 1280 px: progress/failure/retry, Settings connection failure and file export, and sticky editor draft status. No horizontal overflow or page errors. Latest mobile examples: [inline progress](capture-feedback-visuals/390-inline-progress.png), [inline failure and Retry](capture-feedback-visuals/390-inline-failure.png).

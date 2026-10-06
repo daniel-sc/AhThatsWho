@@ -1,4 +1,4 @@
-import { createSignal, createEffect, Show, For, onCleanup } from 'solid-js';
+import { createSignal, createEffect, Show, For, Index, onCleanup } from 'solid-js';
 import { db } from '../data/db';
 import {
   emptyHousehold,
@@ -25,6 +25,7 @@ import type { GenerationMode } from '../providers/openai-contract';
 import { search } from '../domain/search';
 import { HouseholdView } from './HouseholdView';
 import { Editor } from './Editor';
+import { ActionFeedback } from './ActionFeedback';
 
 export function Review(props: {
   capture: Capture;
@@ -44,6 +45,15 @@ export function Review(props: {
   const [sourceText, setSourceText] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
   const [generating, setGenerating] = createSignal(false);
+  const [localRetry, setLocalRetry] = createSignal<{ mode: GenerationMode; draftIndex?: number }>({
+    mode: 'auto',
+  });
+  const processIndex = () => localRetry().draftIndex;
+  const [actionOwner, setActionOwner] = createSignal('');
+  const [processMessage, setProcessMessage] = createSignal('');
+  const [actionError, setActionError] = createSignal<{ owner: string; message: string }>();
+  let wholeFeedback: HTMLDivElement | undefined;
+  let reviewHeading: HTMLDivElement | undefined;
   const [audio, setAudio] = createSignal('');
   let audioUrl = '';
   const c = () => props.capture;
@@ -52,10 +62,12 @@ export function Review(props: {
   const completed = () => captureCompleted(c());
   const processing = () => busy() || !!c().attempt;
   const drafting = () => generating() || !!c().attempt;
+  const feedbackIndex = () =>
+    generating() || actionError()?.owner === 'process' ? processIndex() : c().retry?.draftIndex;
   const progressLabel = () =>
     c().kind === 'audio' && !c().transcript && !c().audioMissing
       ? 'Transcribing your recording…'
-      : c().retry?.draftIndex !== undefined
+      : feedbackIndex() !== undefined
         ? 'Preparing a new household suggestion…'
         : 'Preparing household suggestions…';
   const source = () => [c().text, c().transcript].filter(Boolean).join('\n');
@@ -79,27 +91,82 @@ export function Review(props: {
     props.editing(false);
     if (audioUrl) URL.revokeObjectURL(audioUrl);
   });
-  async function act(fn: () => Promise<unknown>) {
+  async function act(fn: () => Promise<unknown>, owner = 'save') {
     if (busy()) return;
+    setActionOwner(owner);
     setBusy(true);
     props.clearError();
+    setActionError(undefined);
     try {
       await fn();
     } catch (e) {
-      props.error(e);
+      setActionError({
+        owner,
+        message: e instanceof Error ? e.message : 'This action failed. Try again.',
+      });
     } finally {
       setBusy(false);
     }
   }
   async function process(mode: GenerationMode = 'auto', index?: number) {
+    setLocalRetry({ mode, draftIndex: index });
+    setProcessMessage('');
     setGenerating(true);
     try {
       const { processCapture } = await import('../capture/process');
       await processCapture(c().id, mode, index);
+      const updated = await db.inbox.get(c().id);
+      if (updated && !updated.error && !updated.attempt) {
+        setProcessMessage('New household suggestion ready. Check it before saving.');
+      }
     } finally {
       setGenerating(false);
     }
   }
+  function ProcessingFeedback(part: { index?: number }) {
+    const owns = () => feedbackIndex() === part.index;
+    const error = () =>
+      owns() && !processing() && !completed()
+        ? actionError()?.owner === 'process'
+          ? actionError()?.message
+          : c().error
+        : undefined;
+    return (
+      <ActionFeedback
+        pending={drafting() && owns() ? progressLabel() : undefined}
+        error={
+          error() &&
+          `Suggestions could not be prepared. ${error()}${part.index !== undefined ? ' The original suggestion is still shown. Other households are unchanged.' : ''}`
+        }
+        message={
+          !processing() && processIndex() === part.index && part.index !== undefined
+            ? processMessage()
+            : undefined
+        }
+      >
+        <p class="fine">Your note is saved. Retry can produce different suggestions.</p>
+        <button
+          class="primary"
+          disabled={sourceText() !== undefined}
+          onClick={() => {
+            const retry =
+              actionError()?.owner === 'process' ? localRetry() : c().retry || localRetry();
+            void act(() => process(retry?.mode || 'auto', retry?.draftIndex), 'process');
+          }}
+        >
+          Retry
+        </button>
+      </ActionFeedback>
+    );
+  }
+  let wasWholeDrafting = false;
+  createEffect(() => {
+    const whole = drafting() && feedbackIndex() === undefined;
+    if (whole && !wasWholeDrafting) requestAnimationFrame(() => wholeFeedback?.focus());
+    else if (!whole && wasWholeDrafting && drafts().length && !c().error)
+      requestAnimationFrame(() => reviewHeading?.focus());
+    wasWholeDrafting = whole;
+  });
   function choose(index: number, r?: HouseholdRecord) {
     setEditing({
       index,
@@ -122,6 +189,13 @@ export function Review(props: {
     const [query, setQuery] = createSignal('');
     const p = () => card.draft;
     const disabled = () => processing() || !!c().sourceChanged;
+    let feedback: HTMLDivElement | undefined;
+    let wasDrafting = false;
+    createEffect(() => {
+      const active = drafting() && feedbackIndex() === card.index;
+      if (active && !wasDrafting) requestAnimationFrame(() => feedback?.focus());
+      wasDrafting = active;
+    });
     return (
       <article class="review-draft" aria-label={`Household ${card.index + 1}`}>
         <Show when={p()}>
@@ -208,6 +282,9 @@ export function Review(props: {
             kept.
           </p>
         </Show>
+        <div class="action-feedback" tabindex="-1" ref={feedback}>
+          <ProcessingFeedback index={card.index} />
+        </div>
         <Show when={!processing()}>
           <div class="actions">
             <Show when={p()?.household && p()?.action !== 'multiple'}>
@@ -223,7 +300,9 @@ export function Review(props: {
             <Show when={p() && p()?.action !== 'create' && p()?.action !== 'multiple'}>
               <button
                 disabled={disabled() || !p()?.sourceQuotes?.some((quote) => quote.trim())}
-                onClick={() => void act(() => process('new', card.index))}
+                onClick={() => {
+                  void act(() => process('new', card.index), 'process');
+                }}
               >
                 Draft as new household
               </button>
@@ -335,42 +414,6 @@ export function Review(props: {
               }}
             </For>
           </Show>
-          <Show when={drafting()}>
-            <div class="capture-progress" role="status" aria-live="polite" aria-atomic="true">
-              <span class="capture-spinner" aria-hidden="true" />
-              <div>
-                <p class="capture-progress-title">{progressLabel()}</p>
-                <p>
-                  Next, check the household suggestions and save. Nothing has been saved to your
-                  notebook yet.
-                </p>
-              </div>
-            </div>
-          </Show>
-          <Show when={c().error && !completed() && !processing()}>
-            <div class="capture-failure">
-              <div role="alert">
-                <p class="capture-progress-title">Suggestions could not be prepared</p>
-                <p>{c().error}</p>
-                <Show when={c().retry?.draftIndex !== undefined}>
-                  <p>The original suggestion is still shown. Other households are unchanged.</p>
-                </Show>
-              </div>
-              <p class="fine">
-                Your note is saved. Retrying can produce different suggestions from the same text.
-              </p>
-              <button
-                class="primary"
-                disabled={sourceText() !== undefined}
-                onClick={() => {
-                  const retry = c().retry;
-                  void act(() => process(retry?.mode || 'auto', retry?.draftIndex));
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          </Show>
           <Show when={c().audioMissing && !completed()}>
             <p class="notice">
               The original audio is not available on this installation. Enter or correct the text to
@@ -381,13 +424,17 @@ export function Review(props: {
             <p class="notice">Recording was interrupted. Check playback before processing.</p>
           </Show>
           <Show when={c().audioId && !c().audioMissing}>
-            <button disabled={processing()} onClick={() => void act(playback)}>
+            <button disabled={processing()} onClick={() => void act(playback, 'audio')}>
               Play saved recording
             </button>
             <Show when={audio()}>
               <audio controls src={audio()} />
             </Show>
           </Show>
+          <ActionFeedback
+            pending={busy() && actionOwner() === 'audio' ? 'Preparing saved recording…' : undefined}
+            error={actionError()?.owner === 'audio' ? actionError()?.message : undefined}
+          />
           <h2>Source text</h2>
           <Show
             when={sourceText() !== undefined}
@@ -412,7 +459,7 @@ export function Review(props: {
                 void act(async () => {
                   await updateTranscript(c().id, sourceText()!);
                   setSourceText(undefined);
-                });
+                }, 'source');
               }}
             >
               <label>
@@ -433,6 +480,10 @@ export function Review(props: {
                   Cancel correction
                 </button>
               </div>
+              <ActionFeedback
+                pending={busy() && actionOwner() === 'source' ? 'Saving source text…' : undefined}
+                error={actionError()?.owner === 'source' ? actionError()?.message : undefined}
+              />
             </form>
           </Show>
           <Show when={!completed() && sourceText() === undefined}>
@@ -442,7 +493,7 @@ export function Review(props: {
               </p>
             </Show>
             <Show when={drafts().length}>
-              <div class="review-heading">
+              <div class="review-heading" tabindex="-1" ref={reviewHeading}>
                 <h2>
                   {drafts().length}{' '}
                   {drafts().length === 1 ? 'household to review' : 'households to review'}
@@ -452,10 +503,10 @@ export function Review(props: {
                   your notebook.
                 </p>
               </div>
-              <For each={drafts()}>
-                {(draft, index) => <DraftCard draft={draft} index={index()} />}
-              </For>
-              <Show when={!processing()}>
+              <Index each={drafts()}>
+                {(draft, index) => <DraftCard draft={draft()} index={index} />}
+              </Index>
+              <Show when={!drafting()}>
                 <div class="review-save">
                   <button
                     class="primary"
@@ -469,6 +520,12 @@ export function Review(props: {
                   >
                     Save {drafts().length} {drafts().length === 1 ? 'household' : 'households'}
                   </button>
+                  <ActionFeedback
+                    pending={
+                      busy() && actionOwner() === 'save' ? 'Saving household changes…' : undefined
+                    }
+                    error={actionError()?.owner === 'save' ? actionError()?.message : undefined}
+                  />
                   <p class="fine">
                     {ready()
                       ? 'All household changes are saved together.'
@@ -479,6 +536,9 @@ export function Review(props: {
                 </div>
               </Show>
             </Show>
+            <div class="action-feedback" tabindex="-1" ref={wholeFeedback}>
+              <ProcessingFeedback />
+            </div>
             <Show when={!processing()}>
               <details
                 class="review-details reprocess-options"
@@ -496,16 +556,19 @@ export function Review(props: {
                 <div class="actions">
                   <button
                     class={drafts().length || c().error ? undefined : 'primary'}
-                    onClick={() => void act(() => process())}
+                    onClick={() => void act(() => process(), 'process')}
                   >
                     {drafts().length ? 'Reprocess' : 'Process with AI'}
                   </button>
-                  <button disabled={processing()} onClick={() => void act(() => process('single'))}>
+                  <button
+                    disabled={processing()}
+                    onClick={() => void act(() => process('single'), 'process')}
+                  >
                     Reprocess as one household
                   </button>
                   <button
                     disabled={processing()}
-                    onClick={() => void act(() => process('multiple'))}
+                    onClick={() => void act(() => process('multiple'), 'process')}
                   >
                     Reprocess as multiple households
                   </button>
@@ -524,7 +587,7 @@ export function Review(props: {
               <button class="quiet" onClick={props.back}>
                 Keep for later
               </button>
-              <Show when={!processing()}>
+              <Show when={!drafting()}>
                 <button
                   class="quiet danger"
                   disabled={processing()}
@@ -537,13 +600,17 @@ export function Review(props: {
                       void act(async () => {
                         await discardCapture(c().id);
                         props.back();
-                      });
+                      }, 'discard');
                   }}
                 >
                   Discard capture
                 </button>
               </Show>
             </div>
+            <ActionFeedback
+              pending={busy() && actionOwner() === 'discard' ? 'Discarding capture…' : undefined}
+              error={actionError()?.owner === 'discard' ? actionError()?.message : undefined}
+            />
           </Show>
         </section>
       }

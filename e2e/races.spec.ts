@@ -45,7 +45,13 @@ test('malformed and newer imports leave data intact', async ({ page }) => {
       buffer: Buffer.from(JSON.stringify(input)),
     });
     await expect(page.getByRole('alert')).toBeVisible();
-    await page.getByRole('button', { name: 'Dismiss error' }).click();
+    await expect(page.locator('#app-error')).toHaveCount(0);
+    await expect(
+      page
+        .locator('.action-group')
+        .filter({ has: page.locator('input[type=file]') })
+        .getByRole('alert'),
+    ).toBeVisible();
   }
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.locator('.household-row')).toHaveCount(2);

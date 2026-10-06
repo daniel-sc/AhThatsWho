@@ -1551,3 +1551,39 @@ mark {
     padding: 10px 8px;
   }
 }
+
+/* Feedback belongs to its action; persistent wrappers preserve focus across updates. */
+.action-feedback {
+  scroll-margin-block: 16px;
+}
+.action-feedback:empty {
+  display: none;
+}
+.editor-feedback {
+  grid-column: 1 / -1;
+  flex-basis: 100%;
+}
+.editor-feedback p {
+  margin: 0;
+}
+.snapshot-row,
+.context-setting {
+  flex-wrap: wrap;
+}
+.snapshot-row > .action-feedback,
+.context-setting > .capture-progress,
+.context-setting > .capture-failure {
+  flex-basis: 100%;
+}
+.action-group {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.action-group > button,
+.action-group > .file-button {
+  width: 100%;
+}
+.action-group .capture-progress,
+.action-group .capture-failure {
+  margin: 12px 0;
+}

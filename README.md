@@ -46,6 +46,8 @@ For local setup, checks, and implementation details, see the [development guide]
 
 Use Cloudflare native branch Previews for future feature work (`mise exec -- wrangler preview`), with shared settings in Preview Base. CI deploys branch previews automatically; do not create separate preview Workers or use version URL aliases for branches.
 
+Follow the [UX guidelines](docs/ux-guidelines.md): keep progress, errors and recovery beside the action that triggered them, including on mobile.
+
 ## License
 
 [MIT](LICENSE). Bundled fonts retain their [SIL Open Font Licenses](src/assets/fonts/); dependencies retain their respective licenses.

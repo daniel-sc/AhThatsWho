@@ -1,3 +1,4 @@
+import { ActionFeedback } from './ActionFeedback';
 import { DriveBackup } from './DriveBackup';
 import { liveQuery } from 'dexie';
 import { InstallHelp, type createInstallation } from './InstallHelp';
@@ -29,6 +30,8 @@ export function Settings(props: {
   const [state, setState] = createSignal<BackupState>();
   const [busy, setBusy] = createSignal(false);
   const [info, setInfo] = createSignal('');
+  const [feedbackOwner, setFeedbackOwner] = createSignal('');
+  const [actionError, setActionError] = createSignal('');
   const [privateNote, setPrivateNote] = createSignal('');
   const backupSubscription = liveQuery(() => backupState()).subscribe(setState);
   onCleanup(() => backupSubscription.unsubscribe());
@@ -39,19 +42,40 @@ export function Settings(props: {
     setState(await backupState());
     const api = await import('../providers/openai');
     setKeyStatus(api.getKey() ? 'Key available on this device' : 'No key configured');
-    if (backupTarget() === 'drive') void act(refreshAuth);
+    if (backupTarget() === 'drive') void act('backup', refreshAuth);
   });
-  async function act(fn: () => Promise<unknown>) {
+  async function act(owner: string, fn: () => Promise<unknown>) {
+    if (busy()) return;
+    const trigger = document.activeElement;
+    setFeedbackOwner(owner);
+    setActionError('');
     setInfo('');
     setBusy(true);
     try {
       await fn();
       setState(await backupState());
     } catch (e) {
-      props.error(e);
+      setActionError(e instanceof Error ? e.message : 'This action failed. Try again.');
     } finally {
       setBusy(false);
+      requestAnimationFrame(() => {
+        if (
+          trigger instanceof HTMLElement &&
+          trigger.isConnected &&
+          document.activeElement === document.body
+        )
+          trigger.focus({ preventScroll: true });
+      });
     }
+  }
+  function Feedback(part: { owner: string; pending?: string }) {
+    return (
+      <ActionFeedback
+        pending={feedbackOwner() === part.owner && busy() ? part.pending || 'Saving…' : undefined}
+        error={feedbackOwner() === part.owner ? actionError() : undefined}
+        message={feedbackOwner() === part.owner ? info() : undefined}
+      />
+    );
   }
   async function savePreferences(changes: Partial<Preferences>) {
     await db.transaction('rw', db.meta, async () => {
@@ -75,11 +99,6 @@ export function Settings(props: {
       <Show when={props.returnToCapture}>
         <button onClick={props.returnToCapture}>Back to your note</button>
       </Show>
-      <Show when={info()}>
-        <p role="status" class="notice">
-          {info()}
-        </p>
-      </Show>
       <Show when={preview()} keyed>
         {(b) => (
           <div class="import-preview" tabindex="-1" role="region" aria-label="Import preview">
@@ -102,10 +121,11 @@ export function Settings(props: {
                 class="primary"
                 disabled={busy()}
                 onClick={() =>
-                  void act(async () => {
+                  void act('import', async () => {
                     await replaceData(b);
                     closePreview();
                     props.replaced();
+                    setFeedbackOwner('files');
                     setInfo('Data replaced. Previous local data is recoverable below.');
                   })
                 }
@@ -116,10 +136,11 @@ export function Settings(props: {
                 Cancel import
               </button>
             </div>
+            <Feedback owner="import" pending="Replacing local data…" />
           </div>
         )}
       </Show>
-      <fieldset class="settings-content" disabled={!!preview()}>
+      <fieldset class="settings-content" disabled={!!preview() || busy()}>
         <div class="settings-block">
           <h2>People list</h2>
           <label class="check">
@@ -128,12 +149,13 @@ export function Settings(props: {
               checked={props.inlinePersonImages}
               onChange={(event) => {
                 const enabled = event.currentTarget.checked;
-                void act(() => setMeta('inlinePersonImages', enabled));
+                void act('people', () => setMeta('inlinePersonImages', enabled));
               }}
             />
             I'll sacrifice quick recognition to satisfy my completeness itch
           </label>
           <p class="fine muted">Show a small picture or placeholder beside every name.</p>
+          <Feedback owner="people" />
         </div>
         <div class="settings-block">
           <h2>OpenAI</h2>
@@ -180,7 +202,7 @@ export function Settings(props: {
                         const next = e.currentTarget.checked
                           ? [...languages(), language.code]
                           : languages().filter((code) => code !== language.code);
-                        void act(async () => {
+                        void act('ai', async () => {
                           await savePreferences({ recognitionLanguages: next });
                           setLanguages(next);
                         });
@@ -192,6 +214,7 @@ export function Settings(props: {
               </For>
             </div>
           </fieldset>
+          <Feedback owner="ai" />
           <Show when={mode() === 'personal'}>
             <p class="fine">{keyStatus()}</p>
             <label>
@@ -219,7 +242,7 @@ export function Settings(props: {
               <button
                 disabled={busy() || !key().trim()}
                 onClick={() =>
-                  void act(async () => {
+                  void act('key', async () => {
                     const api = await import('../providers/openai');
                     api.setKey(key(), remember());
                     setKeyInput('');
@@ -233,7 +256,7 @@ export function Settings(props: {
               </button>
               <button
                 onClick={() =>
-                  void act(async () => {
+                  void act('key', async () => {
                     const api = await import('../providers/openai');
                     api.forgetKey();
                     setKeyStatus('No key configured');
@@ -243,12 +266,13 @@ export function Settings(props: {
                 Forget key
               </button>
             </div>
+            <Feedback owner="key" />
           </Show>
           <div class="actions">
             <button
               disabled={busy()}
               onClick={() =>
-                void act(async () => {
+                void act('connection', async () => {
                   const api = await import('../providers/openai');
                   setInfo(await api.checkConnection());
                 })
@@ -257,6 +281,7 @@ export function Settings(props: {
               Check connection & models
             </button>
           </div>
+          <Feedback owner="connection" pending="Checking connection and model access…" />
           <details>
             <summary>Verify the parser with synthetic examples</summary>
             <p class="fine">
@@ -267,7 +292,7 @@ export function Settings(props: {
             <button
               disabled={busy()}
               onClick={() =>
-                void act(async () => {
+                void act('evaluation', async () => {
                   const { evaluateParser } = await import('../providers/evaluation');
                   const result = await evaluateParser();
                   await setMeta('parserEvaluation', result);
@@ -279,6 +304,7 @@ export function Settings(props: {
             >
               Run parser evaluation · 3 requests
             </button>
+            <Feedback owner="evaluation" pending="Checking synthetic examples…" />
           </details>
         </div>
         <div class="settings-block">
@@ -291,73 +317,92 @@ export function Settings(props: {
           <p class="fine">
             Uploads run while AhThatsWho is open. Untranscribed audio remains local only.
           </p>
-          <DriveBackup state={state()} busy={busy()} act={act} review={review} />
+          <DriveBackup
+            state={state()}
+            busy={busy()}
+            act={(fn) => act('drive', fn)}
+            review={review}
+          />
+          <Feedback owner="backup" pending="Checking Google connection…" />
         </div>
         <div class="settings-block">
           <h2>Export & recovery</h2>
           <div class="actions">
-            <button
-              disabled={busy()}
-              onClick={() =>
-                void act(async () => {
-                  const { createArchive, downloadArchive } = await import('../backup/archive');
-                  downloadArchive(await createArchive(await snapshot()));
-                  setInfo('Backup file exported with saved portraits and History.');
-                })
-              }
-            >
-              Export backup ZIP
-            </button>
-            <label class="file-button">
-              Import backup file
-              <input
-                type="file"
+            <div class="action-group">
+              <button
                 disabled={busy()}
-                accept="application/zip,application/json,.zip,.json"
-                onChange={(e) => {
-                  const file = e.currentTarget.files?.[0];
-                  if (file)
-                    void act(async () => {
-                      const { readArchive } = await import('../backup/archive');
-                      review(await readArchive(file));
-                    });
-                  e.currentTarget.value = '';
-                }}
-              />
-            </label>
-            <button
-              onClick={() => {
-                if (
-                  confirm(
-                    'Recover the previous local dataset? Current data will become the new safety copy.',
+                onClick={() =>
+                  void act('export', async () => {
+                    const { createArchive, downloadArchive } = await import('../backup/archive');
+                    downloadArchive(await createArchive(await snapshot()));
+                    setInfo('Backup file exported with saved portraits and History.');
+                  })
+                }
+              >
+                Export backup ZIP
+              </button>
+              <Feedback owner="export" pending="Preparing backup ZIP…" />
+            </div>
+            <div class="action-group">
+              <label class="file-button">
+                Import backup file
+                <input
+                  type="file"
+                  disabled={busy()}
+                  accept="application/zip,application/json,.zip,.json"
+                  onChange={(e) => {
+                    const file = e.currentTarget.files?.[0];
+                    if (file)
+                      void act('file-import', async () => {
+                        const { readArchive } = await import('../backup/archive');
+                        review(await readArchive(file));
+                      });
+                    e.currentTarget.value = '';
+                  }}
+                />
+              </label>
+              <Feedback owner="file-import" pending="Reading backup file…" />
+            </div>
+            <div class="action-group">
+              <button
+                onClick={() => {
+                  if (
+                    confirm(
+                      'Recover the previous local dataset? Current data will become the new safety copy.',
+                    )
                   )
-                )
-                  void act(async () => {
-                    await recoverSafety();
-                    props.replaced();
-                    setInfo('Previous local data recovered.');
-                  });
-              }}
-            >
-              Recover previous local data
-            </button>
+                    void act('recovery', async () => {
+                      await recoverSafety();
+                      props.replaced();
+                      setInfo('Previous local data recovered.');
+                    });
+                }}
+              >
+                Recover previous local data
+              </button>
+              <Feedback owner="recovery" pending="Recovering local data…" />
+            </div>
             <button onClick={props.trash}>Open Trash</button>
-            <button
-              onClick={() =>
-                void act(async () =>
-                  review({
-                    ...(await snapshot()),
-                    contexts: [],
-                    households: [],
-                    revisions: [],
-                    inbox: [],
-                  }),
-                )
-              }
-            >
-              Preview empty notebook
-            </button>
+            <div class="action-group">
+              <button
+                onClick={() =>
+                  void act('empty', async () =>
+                    review({
+                      ...(await snapshot()),
+                      contexts: [],
+                      households: [],
+                      revisions: [],
+                      inbox: [],
+                    }),
+                  )
+                }
+              >
+                Preview empty notebook
+              </button>
+              <Feedback owner="empty" pending="Preparing empty notebook preview…" />
+            </div>
           </div>
+          <Feedback owner="files" pending="Preparing local backup data…" />
           <details>
             <summary>Stage a private note for review</summary>
             <p>
@@ -374,7 +419,7 @@ export function Settings(props: {
             </label>
             <button
               onClick={() =>
-                void act(async () => {
+                void act('migration', async () => {
                   if (
                     (await db.households.toArray()).some((r) =>
                       r.household.id.startsWith('synthetic-'),
@@ -392,6 +437,7 @@ export function Settings(props: {
             >
               Stage lines in Inbox
             </button>
+            <Feedback owner="migration" pending="Staging source lines…" />
           </details>
         </div>
         <div class="settings-block">
@@ -405,7 +451,9 @@ export function Settings(props: {
                     type="checkbox"
                     checked={c.favorite}
                     onChange={(e) =>
-                      void act(() => saveContext({ ...c, favorite: e.currentTarget.checked }))
+                      void act(`context:${c.id}`, () =>
+                        saveContext({ ...c, favorite: e.currentTarget.checked }),
+                      )
                     }
                   />
                   {c.name}
@@ -414,7 +462,8 @@ export function Settings(props: {
                   class="quiet"
                   onClick={() => {
                     const name = prompt('Rename context', c.name);
-                    if (name?.trim()) void act(() => saveContext({ ...c, name }));
+                    if (name?.trim())
+                      void act(`context:${c.id}`, () => saveContext({ ...c, name }));
                   }}
                 >
                   Rename
@@ -422,7 +471,7 @@ export function Settings(props: {
                 <button
                   class="quiet danger"
                   onClick={() =>
-                    void act(async () => {
+                    void act(`context:${c.id}`, async () => {
                       const count = (await db.households.toArray()).filter((r) =>
                         r.household.contextIds.includes(c.id),
                       ).length;
@@ -437,17 +486,20 @@ export function Settings(props: {
                 >
                   Delete
                 </button>
+                <Feedback owner={`context:${c.id}`} />
               </div>
             )}
           </For>
           <button
             onClick={() => {
               const name = prompt('New context name');
-              if (name?.trim()) void act(() => saveContext({ id: uuid(), name, favorite: true }));
+              if (name?.trim())
+                void act('contexts', () => saveContext({ id: uuid(), name, favorite: true }));
             }}
           >
             + Create context
           </button>
+          <Feedback owner="contexts" />
         </div>
         <div class="settings-block">
           <h2>On this device</h2>
@@ -457,14 +509,14 @@ export function Settings(props: {
               checked={resume()}
               onChange={(e) => {
                 setResume(e.currentTarget.checked);
-                void act(() => savePreferences({ resume: resume() }));
+                void act('device', () => savePreferences({ resume: resume() }));
               }}
             />
             Resume where I left off
           </label>
           <button
             onClick={() =>
-              void act(async () => {
+              void act('device', async () => {
                 const granted = await navigator.storage?.persist?.();
                 setInfo(
                   granted
@@ -476,6 +528,7 @@ export function Settings(props: {
           >
             Request persistent storage
           </button>
+          <Feedback owner="device" pending="Updating device settings…" />
           <InstallHelp installation={props.installation} />
         </div>
         <div class="settings-block">

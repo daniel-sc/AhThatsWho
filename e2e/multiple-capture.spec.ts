@@ -83,6 +83,8 @@ test('per-household retry uses unvalidated excerpts and preserves both drafts un
 }) => {
   const excerpt = 'Elena rides a red bicycle.';
   let newCalls = 0;
+  let releaseNew: () => void = () => {};
+  const waiting = new Promise<void>((resolve) => (releaseNew = resolve));
   await page.route('**/api/ai/generate', async (route) => {
     const input = route.request().postDataJSON();
     if (input.mode === 'new') {
@@ -90,8 +92,10 @@ test('per-household retry uses unvalidated excerpts and preserves both drafts un
       expect(input.candidates).toEqual([]);
       expect(input.nameIndex).toEqual([]);
       expect(input.hints.householdId).toBeUndefined();
-      if (++newCalls === 1)
+      if (++newCalls === 1) {
+        await waiting;
         return route.fulfill({ status: 500, json: { error: 'Synthetic failure' } });
+      }
       return route.fulfill({
         json: response([
           {
@@ -122,13 +126,29 @@ test('per-household retry uses unvalidated excerpts and preserves both drafts un
     .nth(0)
     .getByRole('button', { name: 'Draft as new household' })
     .click();
+  const affected = page.getByRole('article').nth(0);
+  const progress = affected.getByRole('status');
+  await expect(progress).toContainText('Preparing a new household suggestion');
+  await expect
+    .poll(() =>
+      progress.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= innerHeight - 84;
+      }),
+    )
+    .toBe(true);
+  releaseNew();
   await expect(page.getByRole('alert')).toHaveCount(1);
+  await expect(affected.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('The original suggestion is still shown');
   await expect(page.getByRole('article')).toHaveCount(2);
   await expect(
     page.getByRole('article').nth(0).getByText('My corrected cue', { exact: true }),
   ).toBeVisible();
   await page.reload();
+  await expect(
+    page.getByRole('article').nth(0).getByRole('button', { name: 'Retry', exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(
     page.getByRole('article').nth(0).getByText('New household', { exact: true }),

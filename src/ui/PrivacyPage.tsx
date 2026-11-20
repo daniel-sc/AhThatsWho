@@ -4,10 +4,17 @@ export function PrivacyPage() {
     <main class="privacy-page">
       <Title>Privacy · AhThatsWho</Title>
       <h1>AhThatsWho privacy</h1>
-      <p>Last updated: 2 October 2026</p>
+      <p>Last updated: 20 November 2026</p>
       <p>
         AhThatsWho is a personal name notebook. You can use its manual features without an account.
-        Your notebook is saved in this browser or installed app. There is no analytics tracking.
+        Your notebook is saved in this browser or installed app.
+      </p>
+      <h2>Screen analytics</h2>
+      <p>
+        We use Plausible to count screen visits without cookies. For example, every household edit
+        screen is reported as /households/ID/edit. We do not send record IDs, notebook content,
+        search terms, or URL query strings to Plausible. Offline visits are not saved for later
+        reporting.
       </p>
       <h2>Person images</h2>
       <p>

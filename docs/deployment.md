@@ -46,7 +46,9 @@ iCloud integration has been retired. Existing local notebooks and remote iCloud 
 
 ## CSP and cache verification
 
-`public/_headers` restricts scripts and workers to the app origin, connections to the app and OpenAI, images to local/blob/data URLs, and media to local blob URLs. Frames are disabled. There is no analytics. Inline styles support variable-height lists and crop controls; inline application scripts are not enabled. ZIP code is lazy loaded and uses native codecs without remote worker/WASM dependencies.
+`public/_headers` restricts scripts and workers to the app origin, connections to the app, OpenAI and Plausible's event endpoint, images to local/blob/data URLs, and media to local blob URLs. Frames are disabled. Inline styles support variable-height lists and crop controls; inline application scripts are not enabled. ZIP code is lazy loaded and uses native codecs without remote worker/WASM dependencies.
+
+Before deploying analytics, open the existing `ahthatswho.com` site in Plausible → Settings → Shields → Hostnames and allow only `ahthatswho.com` (no wildcard). The bundled tracker preserves the actual hostname so preview traffic is dropped by this rule. On production, verify a household edit sends a pageview for `https://ahthatswho.com/households/ID/edit` and appears in the realtime dashboard.
 
 The service worker precaches only shell/static assets, including lazy cropping and ZIP code. No OpenAI, sponsored API, Drive, tokens or private responses are runtime-cached. `/api/*` is excluded from navigation fallback; API responses use `Cache-Control: no-store`. `sw.js` and HTML use revalidation; hashed assets can be immutable. Inspect response headers on the deployed hostname because the Vite preview server does not emulate Cloudflare `_headers`.
 

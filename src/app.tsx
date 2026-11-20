@@ -1,7 +1,8 @@
-import { Router } from '@solidjs/router';
+import { Router, useCurrentMatches, useLocation } from '@solidjs/router';
+import { init, track } from '@plausible-analytics/tracker';
 import { clientOnly } from '@solidjs/start';
 import { MetaProvider, Title } from '@solidjs/meta';
-import { ErrorBoundary, Suspense, type ParentProps } from 'solid-js';
+import { createEffect, ErrorBoundary, on, onMount, Suspense, type ParentProps } from 'solid-js';
 import { routes } from './app/routes';
 import { PrivacyPage } from './ui/PrivacyPage';
 import './style.css';
@@ -22,6 +23,29 @@ function NotebookLayout(props: ParentProps) {
     />
   );
 }
+function RouterLayout(props: ParentProps) {
+  const location = useLocation();
+  const matches = useCurrentMatches();
+  onMount(() => {
+    init({
+      domain: 'ahthatswho.com',
+      autoCapturePageviews: false,
+      transformRequest(event) {
+        const pattern = matches().at(-1)?.route.pattern;
+        if (!pattern || pattern === '/' || pattern.includes('*')) return null;
+        return { ...event, u: new URL(event.u).origin + pattern.replace(/:\w+/g, 'ID'), r: null };
+      },
+    });
+    // The launch redirect uses replaceState, which Plausible's automatic tracker misses.
+    createEffect(
+      on(
+        () => location.pathname,
+        () => track('pageview', {}),
+      ),
+    );
+  });
+  return <>{props.children}</>;
+}
 export default function App() {
   return (
     <MetaProvider>
@@ -36,7 +60,7 @@ export default function App() {
         }
       >
         <Suspense>
-          <Router root={(props) => <>{props.children}</>} scrollRestoration>
+          <Router root={RouterLayout} scrollRestoration>
             {[
               { path: '/privacy', component: PrivacyPage },
               { path: '', component: NotebookLayout, children: routes },

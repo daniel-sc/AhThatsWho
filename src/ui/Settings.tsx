@@ -558,8 +558,8 @@ export function Settings(props: {
             <a href="/privacy">Privacy policy</a>
           </p>
           <p>
-            Names, in context. No analytics. Your notebook lives on this device, with optional
-            Google Drive backups and portable file recovery.
+            Your notebook lives on this device, with optional Google Drive backups and portable file
+            recovery.
           </p>
           <p>
             AhThatsWho is open source under the MIT license. Explore the code on{' '}

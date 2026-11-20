@@ -95,6 +95,20 @@ test('captures an independently drifting editor action bar mid-form', async ({ p
       ),
     )
     .toBeGreaterThanOrEqual(179);
+  const episode = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('ahthatswho:layout-report:v1')!).episode,
+  );
+  // Saturate recent history so an accidental reconstruction cannot pass as the original.
+  await page.evaluate(() => {
+    for (let i = 0; i < 20; i++) window.dispatchEvent(new PageTransitionEvent('pageshow'));
+  });
+  await page.goto('/inbox');
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  const saved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('ahthatswho:layout-report:v1')!),
+  );
+  expect(saved.activeGap).toBeGreaterThanOrEqual(179);
+  expect(saved.episode.slice(0, episode.length)).toEqual(episode);
 });
 
 test('offers recent measurements even without an episode, cancellation is quiet, and fallback is copyable', async ({

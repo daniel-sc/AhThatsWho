@@ -31,8 +31,20 @@ type Sample = [
   actionsBottom: number,
   editable: number,
 ];
-type Recordings = { healthy: Sample[]; recent: Sample[]; episode: Sample[]; activeGap: number };
-let records: Recordings = { healthy: [], recent: [], episode: [], activeGap: 0 };
+type Recordings = {
+  healthy: Sample[];
+  recent: Sample[];
+  episode: Sample[];
+  activeGap: number;
+  needsActionMeasurement: boolean;
+};
+let records: Recordings = {
+  healthy: [],
+  recent: [],
+  episode: [],
+  activeGap: 0,
+  needsActionMeasurement: false,
+};
 
 // Only these fixed labels and numbers can reach storage or a shared report, including on reload.
 function readRows(value: unknown, limit: number): Sample[] {
@@ -60,6 +72,7 @@ function bounded(data: Partial<Recordings>): Recordings {
     recent: readRows(data.recent, 16),
     episode,
     activeGap: episode.length && Number.isFinite(data.activeGap) ? Number(data.activeGap) : 0,
+    needsActionMeasurement: episode.length > 0 && data.needsActionMeasurement === true,
   };
 }
 
@@ -141,6 +154,7 @@ export function startLayoutReport(screen: () => Screen) {
     const gap = Math.max(h - vh, Math.abs(h - floor), base - h, Math.abs(top), round(actionGap));
     const comparable = scale === 1 && !editable && now - lastBlur > 600 && reason !== 'hide';
     if (comparable && gap >= 48) {
+      if (actionGap >= 48) records.needsActionMeasurement = true;
       if (!records.activeGap) {
         records.episode = [...records.healthy, ...before.slice(-9), row];
         records.activeGap = gap;
@@ -153,8 +167,13 @@ export function startLayoutReport(screen: () => Screen) {
         records.activeGap = Math.max(records.activeGap, gap);
         if (write === undefined) write = setTimeout(flush, 1000);
       }
-    } else if (comparable && gap < 20) {
+    } else if (
+      comparable &&
+      gap < 20 &&
+      (!records.needsActionMeasurement || Number.isFinite(anchor))
+    ) {
       records.activeGap = 0;
+      records.needsActionMeasurement = false;
       // Do not ratchet the reference down through small steps of a keyboard animation.
       if (h > w && h >= base) records.healthy = [row];
     }

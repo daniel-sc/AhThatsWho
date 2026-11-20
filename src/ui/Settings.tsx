@@ -1,4 +1,5 @@
 import { ActionFeedback } from './ActionFeedback';
+import { ShareLayoutReport } from '../temporary/layout-report/ShareLayoutReport';
 import { DriveBackup } from './DriveBackup';
 import { liveQuery } from 'dexie';
 import { InstallHelp, type createInstallation } from './InstallHelp';
@@ -533,6 +534,7 @@ export function Settings(props: {
         </div>
         <div class="settings-block">
           <h2>Feedback</h2>
+          <ShareLayoutReport />
           <p>
             Something confusing or missing?{' '}
             <a href="mailto:hello@ahthatswho.com?subject=AhThatsWho%20feedback">

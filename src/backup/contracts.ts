@@ -13,11 +13,15 @@ export interface CloudSnapshot {
 }
 export interface BackupProvider {
   list(): Promise<CloudSnapshot[]>;
-  save(id: string, json: string, hash: string): Promise<void>;
+  save(
+    id: string,
+    json: string,
+    hash: string,
+    readImage: (asset: string) => Promise<Blob>,
+    checkCurrent?: () => Promise<void>,
+  ): Promise<void>;
   load(id: string): Promise<string>;
   prune(keep: number): Promise<void>;
-  // Read local bytes only when the destination still needs this immutable asset.
-  ensureImageAsset?(id: string, read: () => Promise<Blob>): Promise<void>;
 }
 export interface DriveSession {
   connected: boolean;

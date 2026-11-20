@@ -84,19 +84,28 @@ export class BackupCoordinator {
         if (!retained) return;
       }
       if ((await backupState(this.d)).generation !== generation) return;
-      const assets = imageAssetIds(parseBackup(pending.json));
-      assert(
-        !assets.length || this.provider.ensureImageAsset,
-        'This backup destination cannot store person images',
-      );
-      for (const id of assets) {
-        if ((await backupState(this.d)).generation !== generation) return;
-        await this.provider.ensureImageAsset!(id, () => readImageAsset(id));
-      }
-      if ((await backupState(this.d)).generation !== generation) return;
       const existing = (await this.provider.list()).find((s) => s.id === pending!.id);
       if ((await backupState(this.d)).generation !== generation) return;
-      if (!existing) await this.provider.save(pending.id, pending.json, pending.digest);
+      if (!existing) {
+        const assets = new Set(imageAssetIds(parseBackup(pending.json)));
+        const checkCurrent = async () => {
+          assert(
+            (await backupState(this.d)).generation === generation,
+            'Notebook changed during backup',
+          );
+        };
+        await this.provider.save(
+          pending.id,
+          pending.json,
+          pending.digest,
+          async (id) => {
+            assert(assets.has(id), 'Unexpected image requested for backup');
+            await checkCurrent();
+            return readImageAsset(id);
+          },
+          checkCurrent,
+        );
+      }
       const retrieved = await this.provider.load(pending.id);
       assert(
         (await digest(retrieved)) === pending.digest,

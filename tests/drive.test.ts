@@ -16,6 +16,8 @@ import { historyId, IDLE_MS, type Session } from '../src/server/drive-auth';
 import { fixtures } from '../src/domain/fixtures';
 import { retainedSnapshots } from '../src/backup/retention';
 import type { CloudSnapshot } from '../src/backup/contracts';
+import { driveProvider } from '../src/providers/drive';
+import { setMeta } from '../src/data/db';
 let sqlite: DatabaseSync;
 let env: DriveEnv;
 const origin = 'https://preview.example';
@@ -255,7 +257,7 @@ async function fakeDrive() {
       appProperties: Record<string, string>;
       size: string;
       content: string | Uint8Array<ArrayBuffer>;
-      version?: string;
+      sha256Checksum?: string;
     }
   >();
   let next = 0;
@@ -297,7 +299,7 @@ async function fakeDrive() {
         ...metadata,
         content,
         size: String(content.length),
-        version: '1',
+        sha256Checksum: await blobHash(new Blob([content])),
       });
       return Response.json({ id: metadata.id });
     }
@@ -440,21 +442,21 @@ it('requires verified binary assets before publishing a snapshot and reuses unch
     new Uint8Array(await image.arrayBuffer()),
   );
   expect((await driveRequest(upload(), env)).status).toBe(200);
-  expect((await driveRequest(request(`assets/${asset}/verify`), env)).status).toBe(200);
+  expect((await driveRequest(request(`assets/${asset}/verify`), env)).status).toBe(426);
   const histories = await (await driveRequest(request('histories'), env)).json();
   expect(histories[0].snapshots).toHaveLength(1);
   const mediaCalls = () =>
     fetchMock.mock.calls.filter(([url]) => String(url).includes(`/${remote.id}?alt=media`)).length;
-  expect(mediaCalls()).toBe(1);
+  expect(mediaCalls()).toBe(0);
   expect((await driveRequest(upload(), env)).status).toBe(200);
-  expect(mediaCalls()).toBe(1);
+  expect(mediaCalls()).toBe(0);
   const h = histories[0].id;
   const restored = await driveRequest(request(`assets/${asset}?history=${h}`), env);
   expect(restored.status).toBe(200);
   expect(await restored.arrayBuffer()).toEqual(await image.arrayBuffer());
-  expect(mediaCalls()).toBe(2); // Restore forces a fresh content check even when cached.
+  expect(mediaCalls()).toBe(1); // Only restore reads the portrait.
   remote.content = 'corrupt';
-  remote.version = '2';
+  remote.sha256Checksum = await hexHash('corrupt');
   expect((await driveRequest(upload(), env)).status).toBe(502);
   expect((await driveRequest(request(`assets/${asset}?history=${h}`), env)).status).toBe(502);
 });
@@ -490,8 +492,13 @@ it('reconciles interrupted image uploads and isolates asset ownership between hi
   expect(
     (await driveRequest(other(request(`assets/${asset}?history=${oldHistory}`)), env)).status,
   ).toBe(200);
-  expect(await (await driveRequest(other(request(`assets/${asset}/verify`)), env)).json()).toEqual({
-    verified: false,
+  const b = fixtures(1);
+  b.households[0].household.people[0].imageAssetId = asset;
+  const snapshot = other(request('snapshots/different-history-portrait', b, 'PUT'));
+  snapshot.headers.set('X-Backup-Label', 'Other');
+  expect(await (await driveRequest(snapshot, env)).json()).toEqual({
+    missing: [asset],
+    needSize: [],
   });
   expect((await driveRequest(other(assetUpload(asset, image)), env)).status).toBe(200);
   expect(files.size).toBe(2);
@@ -501,6 +508,65 @@ it('reconciles interrupted image uploads and isolates asset ownership between hi
   expect(
     (await driveRequest(other(request(`assets/${asset}?history=${oldHistory}`)), env)).status,
   ).toBe(404);
+});
+it('publishes 100 existing portraits with one Drive asset listing and no portrait media reads', async () => {
+  const files = await fakeDrive();
+  const b = fixtures(100);
+  const h = await historyId({ installation, device_hash: await hash(device) });
+  const namespace = (await hash(origin)).slice(0, 24);
+  for (const [i, record] of b.households.entries()) {
+    const content = `portrait-${i}`,
+      asset = await hexHash(content);
+    record.household.people[0].imageAssetId = asset;
+    const id = `existing-portrait-${i}`;
+    files.set(id, {
+      id,
+      name: `${asset}.jpg`,
+      size: String(content.length),
+      content,
+      sha256Checksum: asset,
+      appProperties: { app: 'ahthatswho', origin: namespace, history: h, kind: 'asset', asset },
+    });
+  }
+  // Exercise the client and Worker together, including the checksum-absent negotiation.
+  await setMeta('driveInstallation', { id: installation, label: 'Phone', device });
+  await setMeta('driveToken', token);
+  const google = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url: string, init: RequestInit) => {
+    if (!url.startsWith('/api/backup/')) return google(url, init);
+    const r = new Request(origin + url, init);
+    r.headers.set('Origin', origin);
+    return driveRequest(r, env);
+  });
+  const provider = driveProvider(h, async () => true);
+  const snapshot = JSON.stringify(b);
+  const read = vi.fn(async () => new Blob(['portrait-0']));
+  await provider.save('many-portraits-snapshot', snapshot, await hexHash(snapshot), read);
+  const lists = fetchMock.mock.calls.filter(
+    ([url]) =>
+      String(url).includes('/drive/v3/files?') &&
+      new URL(url).searchParams.get('q')?.includes("key='kind' and value='asset'"),
+  );
+  expect(lists).toHaveLength(1);
+  expect(new URL(lists[0][0]).searchParams.get('fields')).toContain('sha256Checksum');
+  expect(read).not.toHaveBeenCalled();
+  const first = files.get('existing-portrait-0')!;
+  delete first.sha256Checksum;
+  await provider.save('missing-checksum-snapshot', snapshot, await hexHash(snapshot), read);
+  expect(read).toHaveBeenCalledExactlyOnceWith(first.appProperties.asset);
+  first.size = '1';
+  await expect(
+    provider.save('size-mismatch-snapshot', snapshot, await hexHash(snapshot), read),
+  ).rejects.toThrow('does not match');
+  expect(
+    fetchMock.mock.calls.filter(([url]) => String(url).includes('/existing-portrait-')),
+  ).toHaveLength(0);
+  // A genuinely missing portrait is uploaded, not just declared present.
+  files.delete(first.id);
+  await provider.save('new-portrait-snapshot', snapshot, await hexHash(snapshot), read);
+  expect(
+    [...files.values()].filter((f) => f.appProperties.asset === first.appProperties.asset),
+  ).toHaveLength(1);
 });
 it('rejects mismatched and over-limit binary assets and retains assets while pruning snapshots', async () => {
   const files = await fakeDrive(),

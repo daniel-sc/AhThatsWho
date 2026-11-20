@@ -4,6 +4,12 @@ Product design, library baseline, and OPFS local asset storage agreed through th
 
 ## Settled
 
+### Drive verification (2026-11-20)
+
+- Before publishing a snapshot, the Worker lists portrait metadata for the installation's history. Drive's SHA-256 checksum must match the immutable asset ID. Only when Drive omits its checksum can its reported size be compared with the local file size. A mismatch blocks publication.
+- Upload only missing portraits. Normal backup never downloads portrait bytes from Drive. Restore and export still read and hash each required portrait. Snapshot JSON verification is unchanged.
+- Deploy the app and Worker together. An older client's per-image verification request receives an update-required response. Existing portable snapshots, pending backups and filenames need no migration. The old D1 verification table is unused; D1 still stores connection and upload reservation records.
+
 ### Optional inline layout follow-up (2026-10-03)
 
 The design interview is complete and the user authorized implementation. These choices supersede the original card-layout and editor-entry restrictions below only where stated.

@@ -201,44 +201,52 @@ export function driveProvider(history: string, active: () => Promise<boolean>): 
     return (await driveHistories()).find((h) => h.id === history)?.snapshots || [];
   }
   return {
-    async ensureImageAsset(id, read) {
-      await guard();
-      const result = await driveRequest<{ verified: boolean }>(
-        `assets/${id}/verify`,
-        undefined,
-        'POST',
-        guard,
-      );
-      await guard();
-      if (!result.verified) {
-        const image = await read();
-        await guard();
-        await validateImageAsset(id, image);
-        await imageRequest(id, undefined, image, guard);
-      }
-      await guard();
-    },
     async list() {
       return (await ownSnapshots()).map((s) => ({ ...s, id: s.snapshotId || s.id }));
     },
-    async save(id, content) {
-      await guard();
+    async save(id, content, _hash, readImage, checkCurrent) {
+      async function check() {
+        await guard();
+        await checkCurrent?.();
+      }
       const local = await installation(),
         token = await getMeta<string>('driveToken', '');
-      await guard();
-      const response = await fetch(`/api/backup/snapshots/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'X-AhThatsWho': 'backup',
-          'X-Backup-Device': local.device,
-          'X-Backup-Label': encodeURIComponent(local.label),
-        },
-        body: content,
-      });
-      const data = await response.json();
-      if (!response.ok) throw new DriveClientError(data.error || 'Upload failed.', response.status);
+      const sizes: Record<string, number> = {};
+      // A new image can also need a byte count when Drive omits its checksum.
+      // Carry its local size into the single publication retry.
+      for (let attempt = 0; ; attempt++) {
+        await check();
+        const withSizes = Object.keys(sizes).length > 0;
+        const response = await fetch(`/api/backup/snapshots/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': withSizes ? 'application/x-ndjson' : 'application/json',
+            Authorization: `Bearer ${token}`,
+            'X-AhThatsWho': 'backup',
+            'X-Backup-Device': local.device,
+            'X-Backup-Label': encodeURIComponent(local.label),
+          },
+          body: withSizes ? `${JSON.stringify(sizes)}\n${content}` : content,
+        });
+        const data = await response.json();
+        if (response.ok) return;
+        if (
+          attempt ||
+          response.status !== 409 ||
+          !Array.isArray(data.missing) ||
+          !Array.isArray(data.needSize)
+        )
+          throw new DriveClientError(
+            data.error || 'Upload failed. Retry the backup.',
+            response.status,
+          );
+        for (const asset of data.needSize) sizes[asset] = (await readImage(asset)).size;
+        for (const asset of data.missing) {
+          const image = await readImage(asset);
+          sizes[asset] = image.size;
+          await imageRequest(asset, undefined, image, check);
+        }
+      }
     },
     async load(id) {
       await guard();

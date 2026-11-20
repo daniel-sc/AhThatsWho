@@ -24,15 +24,18 @@ async function setup() {
   await replaceData(b, d);
   const storage = new Map<string, string>();
   const remote = new Set<string>();
+  const upload = {
+    async ensure(asset: string, read: () => Promise<Blob>) {
+      await read();
+      remote.add(asset);
+    },
+  };
   const provider: BackupProvider = {
     async list() {
       return [];
     },
-    async ensureImageAsset(asset, read) {
-      await read();
-      remote.add(asset);
-    },
-    async save(snapshot, json) {
+    async save(snapshot, json, _hash, read) {
+      await upload.ensure(id, () => read(id));
       expect(remote.has(id)).toBe(true);
       storage.set(snapshot, json);
     },
@@ -41,14 +44,14 @@ async function setup() {
     },
     async prune() {},
   };
-  return { d, b, provider, storage, remote, id };
+  return { d, b, provider, storage, remote, id, upload };
 }
 
 it('does not advance verified backup state after an interrupted image upload and retries its pending snapshot', async () => {
-  const { d, provider, storage } = await setup();
-  const ensure = provider.ensureImageAsset!;
+  const { d, provider, storage, upload } = await setup();
+  const ensure = upload.ensure;
   let interrupted = true;
-  provider.ensureImageAsset = async (...args) => {
+  upload.ensure = async (...args) => {
     await ensure(...args);
     if (interrupted) {
       interrupted = false;
@@ -68,9 +71,9 @@ it('does not advance verified backup state after an interrupted image upload and
 });
 
 it('keeps edits during image upload pending and ignores obsolete image completions after replacement', async () => {
-  const { d, b, provider, storage } = await setup();
-  const ensure = provider.ensureImageAsset!;
-  provider.ensureImageAsset = async (...args) => {
+  const { d, b, provider, storage, upload } = await setup();
+  const ensure = upload.ensure;
+  upload.ensure = async (...args) => {
     await ensure(...args);
     const record = (await d.households.get(b.households[0].household.id))!;
     await saveHousehold(
@@ -85,7 +88,7 @@ it('keeps edits during image upload pending and ignores obsolete image completio
   const state = await backupState(d);
   expect(state.counter).toBeGreaterThan(state.uploadedCounter);
   expect(storage.size).toBe(1);
-  provider.ensureImageAsset = async (...args) => {
+  upload.ensure = async (...args) => {
     await ensure(...args);
     await replaceData(fixtures(2), d);
     throw new Error('Obsolete upload failure');
@@ -97,11 +100,11 @@ it('keeps edits during image upload pending and ignores obsolete image completio
 });
 
 it('lets an existing remote image satisfy an ordinary text backup without reopening local portraits', async () => {
-  const { d, provider, remote, id } = await setup();
+  const { d, provider, remote, id, upload } = await setup();
   remote.add(id);
   const localRead = vi.mocked(images.readImageAsset);
   localRead.mockClear();
-  provider.ensureImageAsset = async (asset) => {
+  upload.ensure = async (asset) => {
     expect(remote.has(asset)).toBe(true);
   };
   await setMeta('backup', { ...(await backupState(d)), counter: 2 }, d);

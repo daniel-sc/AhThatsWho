@@ -414,8 +414,8 @@ describe('backup coordinator', () => {
     const b = await seed(d);
     const m = providerMock();
     const original = m.provider.save;
-    m.provider.save = async (id, json, hash) => {
-      await original(id, json, hash);
+    m.provider.save = async (...args) => {
+      await original(...args);
       const r = (await d.households.get(b.households[0].household.id))!;
       await saveHousehold(
         { ...r.household, cue: 'Edited during upload' },
@@ -427,8 +427,8 @@ describe('backup coordinator', () => {
     await new BackupCoordinator(m.provider, d).run();
     let state = await backupState(d);
     expect(state.counter).toBeGreaterThan(state.uploadedCounter);
-    m.provider.save = async (id, json, hash) => {
-      await original(id, json, hash);
+    m.provider.save = async (...args) => {
+      await original(...args);
       await replaceData(fixtures(1), d);
     };
     await new BackupCoordinator(m.provider, d).run();
@@ -456,8 +456,8 @@ describe('backup coordinator', () => {
     const m = providerMock();
     const original = m.provider.save;
     let first = true;
-    m.provider.save = async (id, json, hash) => {
-      await original(id, json, hash);
+    m.provider.save = async (...args) => {
+      await original(...args);
       if (first) {
         first = false;
         throw new Error('lost reply');

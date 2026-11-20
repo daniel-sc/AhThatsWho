@@ -22,11 +22,11 @@ interface DriveFile {
   id: string;
   name: string;
   size?: string;
-  version?: string;
+  sha256Checksum?: string;
   appProperties: Record<string, string>;
 }
 const API = 'https://www.googleapis.com/drive/v3';
-const FIELDS = 'id,name,size,version,appProperties';
+const FIELDS = 'id,name,size,sha256Checksum,appProperties';
 export class DriveStorage {
   constructor(
     private env: DriveEnv,
@@ -151,50 +151,26 @@ export class DriveStorage {
         f.appProperties.app === 'ahthatswho',
     );
   }
-  private async verifyAssetFile(
-    f: DriveFile,
-    asset: string,
-    force = false,
-  ): Promise<Blob | undefined> {
-    const args = [this.s.origin, this.s.account_id, f.appProperties.history, asset];
-    const cached = await this.env
-      .BACKUP_DB!.prepare(
-        'SELECT file_id,drive_version FROM drive_asset_verifications WHERE origin=? AND account_id=? AND history=? AND asset=?',
-      )
-      .bind(...args)
-      .first<{ file_id: string; drive_version: string }>();
-    // Drive's version increases for every change. Missing revision metadata never proves reuse safe.
-    if (!force && f.version && cached?.file_id === f.id && cached.drive_version === f.version)
-      return;
+  private matches(f: DriveFile, asset: string, expectedSize?: number) {
+    if (f.sha256Checksum !== undefined) return f.sha256Checksum === asset;
+    return (
+      Number.isSafeInteger(expectedSize) &&
+      expectedSize! > 0 &&
+      expectedSize! <= MAX_IMAGE_BYTES &&
+      f.size === String(expectedSize)
+    );
+  }
+  async loadAsset(history: string, asset: string) {
+    const f = await this.assetFile(history, asset);
+    if (!f)
+      throw new DriveError(404, 'A required person image is missing from this backup history.');
     const image = await bodyBlob(await this.request(`files/${f.id}?alt=media`), MAX_IMAGE_BYTES);
     if ((await blobHash(image)) !== asset)
       throw new DriveError(
         502,
         'Person image verification failed. Restore cannot replace your notebook.',
       );
-    const latest = await this.file(f.id);
-    if (latest.version !== f.version)
-      throw new DriveError(502, 'Person image changed during verification. Retry the backup.');
-    if (f.version)
-      await this.env
-        .BACKUP_DB!.prepare(
-          'INSERT OR REPLACE INTO drive_asset_verifications(origin,account_id,history,asset,file_id,drive_version) VALUES(?,?,?,?,?,?)',
-        )
-        .bind(...args, f.id, f.version)
-        .run();
     return image;
-  }
-  async verifyAsset(asset: string) {
-    const f = await this.assetFile(await historyId(this.s), asset);
-    if (!f) return false;
-    await this.verifyAssetFile(f, asset);
-    return true;
-  }
-  async loadAsset(history: string, asset: string) {
-    const f = await this.assetFile(history, asset);
-    if (!f)
-      throw new DriveError(404, 'A required person image is missing from this backup history.');
-    return (await this.verifyAssetFile(f, asset, true))!;
   }
   async saveAsset(asset: string, image: Blob) {
     requireValue(/^[a-f0-9]{64}$/.test(asset), 'Invalid person image identifier.');
@@ -224,7 +200,8 @@ export class DriveStorage {
           f.appProperties.asset === asset,
       );
     }
-    await this.verifyAssetFile(f, asset, true);
+    if (!this.matches(f, asset, image.size))
+      throw new DriveError(502, 'Uploaded person image did not pass verification.');
     return { verified: true };
   }
   private async allocatedId(snapshot: string, digest: string) {
@@ -322,7 +299,7 @@ export class DriveStorage {
         '{}',
       );
   }
-  async save(snapshotId: string, content: string, label: string) {
+  async save(snapshotId: string, content: string, label: string, sizes: Record<string, number>) {
     identifier(snapshotId);
     let backup;
     try {
@@ -333,11 +310,19 @@ export class DriveStorage {
     const digest = await hexHash(content);
     const h = await historyId(this.s);
     // Never publish a snapshot whose image dependencies have not been verified in this history.
-    for (const asset of imageAssetIds(backup)) {
-      const f = await this.assetFile(h, asset);
-      if (!f)
-        throw new DriveError(409, 'A person image has not finished backing up. Retry the backup.');
-      await this.verifyAssetFile(f, asset);
+    const assets = imageAssetIds(backup);
+    if (assets.length) {
+      const files = new Map((await this.list('asset', h)).map((f) => [f.appProperties.asset, f]));
+      const missing: string[] = [],
+        needSize: string[] = [];
+      for (const asset of assets) {
+        const f = files.get(asset);
+        if (!f) missing.push(asset);
+        else if (f.sha256Checksum === undefined && sizes[asset] === undefined) needSize.push(asset);
+        else if (!this.matches(f, asset, sizes[asset]))
+          throw new DriveError(502, 'Person image metadata does not match the local portrait.');
+      }
+      if (missing.length || needSize.length) return json({ missing, needSize }, 409);
     }
     const id = await this.allocatedId(snapshotId, digest);
     if (
@@ -365,7 +350,7 @@ export class DriveStorage {
     const retrieved = await this.load(id);
     if ((await hexHash(retrieved)) !== digest)
       throw new DriveError(502, 'Uploaded backup did not pass verification.');
-    return { id };
+    return json({ id });
   }
   async prune(verifiedId: string) {
     // Only prune after verifying a snapshot belonging to this installation.
@@ -388,12 +373,6 @@ export class DriveStorage {
     }
     await this.env
       .BACKUP_DB!.prepare('DELETE FROM drive_uploads WHERE origin=? AND account_id=? AND file_id=?')
-      .bind(this.s.origin, this.s.account_id, id)
-      .run();
-    await this.env
-      .BACKUP_DB!.prepare(
-        'DELETE FROM drive_asset_verifications WHERE origin=? AND account_id=? AND file_id=?',
-      )
       .bind(this.s.origin, this.s.account_id, id)
       .run();
   }
@@ -434,7 +413,7 @@ export async function storageRoute(request: Request, env: DriveEnv) {
   }
   const asset = path.match(/^\/api\/backup\/assets\/([a-f0-9]{64})(\/verify)?$/);
   if (asset && asset[2] && request.method === 'POST')
-    return json({ verified: await storage.verifyAsset(asset[1]) });
+    throw new DriveError(426, 'Update AhThatsWho to resume photo backups.');
   if (asset && !asset[2] && request.method === 'PUT')
     return json(await storage.saveAsset(asset[1], await bodyBlob(request, MAX_IMAGE_BYTES)));
   if (asset && !asset[2] && request.method === 'POST') {
@@ -462,13 +441,24 @@ export async function storageRoute(request: Request, env: DriveEnv) {
   if (match && request.method === 'PUT') {
     const label = request.headers.get('X-Backup-Label');
     requireValue(label && label.length <= 1024);
-    return json(
-      await storage.save(
-        match[1],
-        await bodyText(request, BACKUP_MAX_BYTES),
-        decodeURIComponent(label),
-      ),
+    const withSizes = request.headers.get('Content-Type') === 'application/x-ndjson';
+    const sizeManifestLimit = 1024 * 1024;
+    let content = await bodyText(
+      request,
+      BACKUP_MAX_BYTES + (withSizes ? sizeManifestLimit + 1 : 0),
     );
+    let sizes = {};
+    if (withSizes) {
+      // Optional local byte counts on the first line; retain the exact snapshot bytes for retries.
+      const newline = content.indexOf('\n');
+      requireValue(newline > 0 && newline <= sizeManifestLimit);
+      sizes = JSON.parse(content.slice(0, newline));
+      requireValue(sizes && typeof sizes === 'object' && !Array.isArray(sizes));
+      content = content.slice(newline + 1);
+      if (new Blob([content]).size > BACKUP_MAX_BYTES)
+        throw new DriveError(413, 'Backup exceeds the size limit.');
+    }
+    return storage.save(match[1], content, decodeURIComponent(label), sizes);
   }
   return json({ error: 'Not found.' }, 404);
 }

@@ -20,18 +20,23 @@ test('retains a same-width window and visual viewport shrink through restart and
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   const householdPath = new URL(page.url()).pathname;
-  await page.evaluate(() => {
-    window.dispatchEvent(new PageTransitionEvent('pageshow'));
-  });
+  await page.waitForFunction(() =>
+    JSON.parse(localStorage.getItem('ahthatswho:layout-report:v1') || '{}').recent?.some(
+      (row: unknown[]) => row[2] === 'screen' && row[3] === 'editor',
+    ),
+  );
   // Emulate WebKit retaining a shorter window AND visual viewport; comparing only those
   // two heights would miss this case. The keyboard is closed and scale is unchanged.
   await page.waitForFunction(() => document.activeElement === document.body);
-  await page.evaluate(() => {
+  const shortenViewport = () => {
     const h = innerHeight - 320;
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: h });
     Object.defineProperty(visualViewport, 'height', { configurable: true, value: h });
-    window.dispatchEvent(new PageTransitionEvent('pageshow'));
-  });
+  };
+  await page.addInitScript(shortenViewport);
+  await page.evaluate(shortenViewport);
+  await page.addStyleTag({ content: '.bottom-nav { transform: translateY(-320px); }' });
+  await page.evaluate(() => visualViewport!.dispatchEvent(new Event('resize')));
   await expect
     .poll(() =>
       page.evaluate(
@@ -42,6 +47,10 @@ test('retains a same-width window and visual viewport shrink through restart and
       ),
     )
     .toBe('editor');
+  const onset = await page.evaluate(
+    () =>
+      JSON.parse(localStorage.getItem('ahthatswho:layout-report:v1')!).episode.at(-1)[0] as number,
+  );
   await page.reload();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   // Exercise the real share handler without opening the OS chooser.
@@ -55,10 +64,37 @@ test('retains a same-width window and visual viewport shrink through restart and
   });
   await page.getByRole('button', { name: 'Share recent layout report' }).click();
   const report = await page.locator('html').getAttribute('data-shared');
-  expect(report).toMatch(/Latest suspected episode[\s\S]* (resume|settled) editor /);
+  expect(report?.split('Last healthy portrait')[0]).toContain(new Date(onset).toISOString());
   expect(report).not.toContain('PRIVATE-CANARY');
   expect(report).not.toContain(householdPath.split('/')[2]);
   expect(report).not.toContain('https://');
+});
+
+test('captures an independently drifting editor action bar mid-form', async ({ page }) => {
+  await installedPhone(page);
+  await page.goto('/');
+  await page
+    .getByRole('button', { name: /^(Add household|Add a person)/ })
+    .first()
+    .click();
+  for (let i = 0; i < 4; i++)
+    await page
+      .getByRole('button', { name: '+ Add person', exact: true })
+      .evaluate((el) => (el as HTMLButtonElement).click());
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight / 2));
+  await page.waitForFunction(() => {
+    const form = document.querySelector('form')!.getBoundingClientRect();
+    return form.top < 0 && form.bottom > innerHeight;
+  });
+  await page.addStyleTag({ content: '.sticky-actions { transform: translateY(-180px) }' });
+  await page.evaluate(() => window.dispatchEvent(new Event('scroll')));
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('ahthatswho:layout-report:v1') || '{}').activeGap,
+      ),
+    )
+    .toBeGreaterThanOrEqual(179);
 });
 
 test('offers recent measurements even without an episode, cancellation is quiet, and fallback is copyable', async ({

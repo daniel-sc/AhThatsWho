@@ -1,5 +1,5 @@
-import { Show, Suspense, onCleanup, onMount, type ParentProps } from 'solid-js';
-import { startLayoutReport } from '../temporary/layout-report/recorder';
+import { Show, Suspense, onCleanup, type ParentProps } from 'solid-js';
+import { installLayoutReport } from '../temporary/layout-report/install';
 import { Icon } from '../ui/Icon';
 import { cloudStatus } from './backup';
 import { createNotebook, NotebookContext, useNotebook } from './notebook';
@@ -30,7 +30,7 @@ function Layout(props: ParentProps) {
     error,
     setError,
   } = useNotebook();
-  onMount(() => onCleanup(startLayoutReport(() => ui().screen)));
+  installLayoutReport(() => ui().screen);
   let searchInput: HTMLInputElement | undefined;
   let cancelSearchScroll = () => {};
   onCleanup(() => cancelSearchScroll());

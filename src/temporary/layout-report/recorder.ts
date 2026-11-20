@@ -1,9 +1,20 @@
 import { screens, type Screen } from '../../app/view-state';
+import { createEffect, on, onCleanup } from 'solid-js';
 
 // Temporary, local-only iPhone Home Screen diagnostics. See README.md for removal.
 const key = 'ahthatswho:layout-report:v1';
 const week = 7 * 24 * 60 * 60 * 1000;
-const events = ['open', 'resume', 'hide', 'focus', 'blur', 'settled', 'resize', 'scroll'] as const;
+const events = [
+  'open',
+  'screen',
+  'resume',
+  'hide',
+  'focus',
+  'blur',
+  'settled',
+  'resize',
+  'scroll',
+] as const;
 type Reason = (typeof events)[number];
 type Sample = [
   time: number,
@@ -20,17 +31,8 @@ type Sample = [
   actionsBottom: number,
   editable: number,
 ];
-type Recordings = { healthy: Sample[]; recent: Sample[]; episode: Sample[] };
-let records: Recordings = { healthy: [], recent: [], episode: [] };
-
-export function isReportDevice() {
-  return (
-    typeof navigator !== 'undefined' &&
-    /iPhone/.test(navigator.userAgent) &&
-    (window.matchMedia('(display-mode: standalone)').matches ||
-      (navigator as Navigator & { standalone?: boolean }).standalone === true)
-  );
-}
+type Recordings = { healthy: Sample[]; recent: Sample[]; episode: Sample[]; activeGap: number };
+let records: Recordings = { healthy: [], recent: [], episode: [], activeGap: 0 };
 
 // Only these fixed labels and numbers can reach storage or a shared report, including on reload.
 function readRows(value: unknown, limit: number): Sample[] {
@@ -52,15 +54,16 @@ function readRows(value: unknown, limit: number): Sample[] {
     );
 }
 function bounded(data: Partial<Recordings>): Recordings {
+  const episode = readRows(data.episode, 12);
   return {
     healthy: readRows(data.healthy, 1),
     recent: readRows(data.recent, 16),
-    episode: readRows(data.episode, 12),
+    episode,
+    activeGap: episode.length && Number.isFinite(data.activeGap) ? Number(data.activeGap) : 0,
   };
 }
 
 export function startLayoutReport(screen: () => Screen) {
-  if (!isReportDevice()) return () => {};
   try {
     records = bounded(JSON.parse(localStorage.getItem(key) || '{}'));
   } catch {
@@ -73,9 +76,7 @@ export function startLayoutReport(screen: () => Screen) {
   let write: ReturnType<typeof setTimeout> | undefined;
   let motion: ReturnType<typeof setTimeout> | undefined;
   let settle: ReturnType<typeof setTimeout> | undefined;
-  let lastBlur = 0,
-    inEpisode = false,
-    worstGap = 0;
+  let lastBlur = 0;
   const flush = () => {
     clearTimeout(write);
     write = undefined;
@@ -101,6 +102,16 @@ export function startLayoutReport(screen: () => Screen) {
     );
     const floor = round(nav.getBoundingClientRect().bottom);
     const actions = document.querySelector('.sticky-actions');
+    const actionRect = actions?.getBoundingClientRect();
+    // At the ends of its form, a sticky element legitimately returns to normal flow.
+    // Only judge its anchor in the interior, where the form spans the viewport.
+    const form = actions?.parentElement?.getBoundingClientRect();
+    const anchor =
+      actions && form && form.top < 0 && form.bottom > h
+        ? h - parseFloat(getComputedStyle(actions).bottom)
+        : undefined;
+    const actionGap =
+      Number.isFinite(anchor) && actionRect ? Math.abs(actionRect.bottom - anchor!) : 0;
     const now = Date.now();
     const row: Sample = [
       now,
@@ -114,7 +125,7 @@ export function startLayoutReport(screen: () => Screen) {
       scale,
       round(scrollY),
       floor,
-      actions ? round(actions.getBoundingClientRect().bottom) : -1,
+      actionRect ? round(actionRect.bottom) : -1,
       Number(editable),
     ];
     const before = records.recent;
@@ -127,25 +138,25 @@ export function startLayoutReport(screen: () => Screen) {
     records.recent = [...(replace ? before.slice(0, -1) : before), row].slice(-16);
     const healthy = records.healthy[0];
     const base = healthy && healthy[0] >= now - week && healthy[4] === w ? healthy[5] : h;
-    const gap = Math.max(h - vh, h - floor, base - h, Math.abs(top));
+    const gap = Math.max(h - vh, Math.abs(h - floor), base - h, Math.abs(top), round(actionGap));
     const comparable = scale === 1 && !editable && now - lastBlur > 600 && reason !== 'hide';
     if (comparable && gap >= 48) {
-      if (!inEpisode) {
+      if (!records.activeGap) {
         records.episode = [...records.healthy, ...before.slice(-9), row];
-        inEpisode = true;
-        worstGap = gap;
+        records.activeGap = gap;
         flush(); // The user may have to force-quit immediately.
       } else if (
-        gap > worstGap ||
+        gap > records.activeGap ||
         (screen() === 'editor' && records.episode.at(-1)?.[3] !== 'editor')
       ) {
         records.episode = [...records.episode.slice(0, 11), row];
-        worstGap = Math.max(worstGap, gap);
+        records.activeGap = Math.max(records.activeGap, gap);
         if (write === undefined) write = setTimeout(flush, 1000);
       }
     } else if (comparable && gap < 20) {
-      inEpisode = false;
-      if (h > w) records.healthy = [row];
+      records.activeGap = 0;
+      // Do not ratchet the reference down through small steps of a keyboard animation.
+      if (h > w && h >= base) records.healthy = [row];
     }
     if (write === undefined) write = setTimeout(flush, 3000);
   }
@@ -191,6 +202,19 @@ export function startLayoutReport(screen: () => Screen) {
   document.addEventListener('visibilitychange', () => (document.hidden ? hide() : resume()), opts);
   window.addEventListener('pagehide', hide, opts);
   window.addEventListener('pageshow', resume, opts);
+  createEffect(
+    on(screen, (current) => {
+      if (current === 'settings') {
+        flush();
+        return;
+      }
+      const frame = requestAnimationFrame(() => {
+        sample('screen');
+        afterTransition();
+      });
+      onCleanup(() => cancelAnimationFrame(frame));
+    }),
+  );
   sample('open');
   return () => {
     listeners.abort();
@@ -200,20 +224,6 @@ export function startLayoutReport(screen: () => Screen) {
   };
 }
 
-export function layoutReportText() {
-  const data = bounded(records);
-  function section(title: string, rows: Sample[]) {
-    return [
-      title,
-      ...rows.map(([t, ...fields]) => `${new Date(t).toISOString()} ${fields.join(' ')}`),
-      ...(rows.length ? [] : ['None recorded.']),
-    ].join('\n');
-  }
-  return [
-    'AhThatsWho · iPhone Home Screen layout report v1',
-    'UTC | build | event | screen | width | windowH | visualH | visualTop | zoom | scrollY | navBottom | actionsBottom (-1=absent) | editable (0/1)',
-    section('Latest suspected episode (including lead-up)', data.episode),
-    section('Last healthy portrait measurement', data.healthy),
-    section('Recent activity before Settings', data.recent),
-  ].join('\n\n');
+export function layoutMeasurements() {
+  return bounded(records);
 }
